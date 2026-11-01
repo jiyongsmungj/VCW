@@ -1,0 +1,1763 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#FFF5F9" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0F0C1B" media="(prefers-color-scheme: dark)">
+<title>보이스 체인저</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='18' fill='%23E0327C'/%3E%3Cpath d='M14 32h4M23 22v20M32 14v36M41 22v20M50 28v8' stroke='white' stroke-width='5' stroke-linecap='round'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<!-- the display font is optional: load it without blocking the first paint -->
+<link href="https://fonts.googleapis.com/css2?family=Jua&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+<noscript><link href="https://fonts.googleapis.com/css2?family=Jua&display=swap" rel="stylesheet"></noscript>
+<style>
+/* Layout: one column phone app. Stage card (pitch graph) on top, big mic control, presets, sliders; bottom tab bar. */
+:root {
+  --bg: #FFF5F9; --glow-a: rgba(255,126,182,.24); --glow-b: rgba(60,200,170,.16);
+  --surface: #FFFFFF; --surface2: #FCEAF2; --line: #EBCFDF; --fg: #2A1A34; --muted: #735F83;
+  --accent: #E0327C; --accent-ink: #FFFFFF; --accent-soft: #FFDCEB;
+  --out: #0B8F78; --in: #8F7BA6; --grid: rgba(90,50,110,.14);
+  --warn-bg: #FFF1D6; --warn-fg: #7A4A00; --danger: #C9243F; --ok: #13875F;
+  --track: #E6CBDB; --shadow: 0 10px 30px rgba(130,40,100,.14);
+  --f-disp: 'Jua','Noto Sans KR','Noto Sans CJK KR','Apple SD Gothic Neo','Malgun Gothic',system-ui,sans-serif;
+  --f-body: system-ui,-apple-system,'Noto Sans KR','Noto Sans CJK KR','Apple SD Gothic Neo','Malgun Gothic','Segoe UI',Roboto,sans-serif;
+  --r: 20px; --r-s: 14px;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0F0C1B; --glow-a: rgba(255,126,182,.17); --glow-b: rgba(125,243,210,.10);
+    --surface: #1A1530; --surface2: #241E41; --line: #372F5C; --fg: #F4EFFF; --muted: #A99FCB;
+    --accent: #FF7EB6; --accent-ink: #2B0A1C; --accent-soft: #3B1A33;
+    --out: #7DF3D2; --in: #9A8FC2; --grid: rgba(190,170,255,.14);
+    --warn-bg: #3A2D12; --warn-fg: #FFD28A; --danger: #FF7A8A; --ok: #6BE3B0;
+    --track: #3A3260; --shadow: 0 12px 34px rgba(0,0,0,.45);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0F0C1B; --glow-a: rgba(255,126,182,.17); --glow-b: rgba(125,243,210,.10);
+  --surface: #1A1530; --surface2: #241E41; --line: #372F5C; --fg: #F4EFFF; --muted: #A99FCB;
+  --accent: #FF7EB6; --accent-ink: #2B0A1C; --accent-soft: #3B1A33;
+  --out: #7DF3D2; --in: #9A8FC2; --grid: rgba(190,170,255,.14);
+  --warn-bg: #3A2D12; --warn-fg: #FFD28A; --danger: #FF7A8A; --ok: #6BE3B0;
+  --track: #3A3260; --shadow: 0 12px 34px rgba(0,0,0,.45);
+  color-scheme: dark;
+}
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+[hidden] { display: none !important; }
+html { height: 100%; }
+body {
+  margin: 0; min-height: 100%; background: var(--bg); color: var(--fg);
+  font: 400 15px/1.5 var(--f-body); -webkit-text-size-adjust: 100%;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-top: env(safe-area-inset-top, 0px);
+}
+body::before {
+  content: ""; position: fixed; inset: 0; z-index: -1; pointer-events: none;
+  background: radial-gradient(60% 38% at 12% 0%, var(--glow-a), transparent 70%),
+              radial-gradient(50% 36% at 100% 28%, var(--glow-b), transparent 70%);
+}
+button { font: inherit; color: inherit; cursor: pointer; }
+:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+.app { max-width: 560px; margin: 0 auto; padding-bottom: calc(110px + env(safe-area-inset-bottom, 0px)); }
+.ic { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+.ic.f { fill: currentColor; stroke: none; }
+
+.top { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 0 12px; }
+.brand { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.logo { width: 38px; height: 38px; border-radius: 13px; background: var(--accent); color: var(--accent-ink); display: grid; place-items: center; flex: none; }
+.brand h1 { margin: 0; font: 400 23px/1.1 var(--f-disp); white-space: nowrap; }
+.pill { display: inline-flex; align-items: center; gap: 8px; padding: 6px 12px; border-radius: 999px; background: var(--surface); border: 1px solid var(--line); color: var(--muted); font-size: 13px; font-weight: 500; max-width: 58%; }
+.pill span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pill i { width: 9px; height: 9px; border-radius: 50%; background: var(--muted); flex: none; }
+.pill[data-k="live"] { color: var(--fg); } .pill[data-k="live"] i { background: var(--ok); box-shadow: 0 0 0 4px color-mix(in srgb, var(--ok) 25%, transparent); }
+.pill[data-k="busy"] i { background: var(--warn-fg); }
+.pill[data-k="rec"] { color: var(--fg); } .pill[data-k="rec"] i { background: var(--danger); animation: blink 1s infinite; }
+.pill[data-k="err"] i { background: var(--danger); }
+@keyframes blink { 50% { opacity: .25; } }
+
+.notice { background: var(--warn-bg); color: var(--warn-fg); border-radius: var(--r-s); padding: 12px 14px; font-size: 14px; margin-bottom: 12px; }
+.notice .nt { display: block; margin-bottom: 2px; }
+.notice ul { margin: 8px 0 0; padding-left: 18px; }
+.notice li { margin: 3px 0; }
+
+.stage { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); box-shadow: var(--shadow); padding: 14px 14px 12px; display: grid; gap: 12px; }
+.nums { display: grid; grid-template-columns: 1fr auto 1fr; align-items: end; gap: 8px; }
+.num small { display: block; color: var(--muted); font-size: 12px; margin-bottom: 2px; }
+.num b { font: 400 30px/1 var(--f-disp); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.num b em { font: 500 13px var(--f-body); font-style: normal; color: var(--muted); margin-left: 3px; }
+.num.out { text-align: right; } .num.out b { color: var(--out); }
+.arrow { color: var(--muted); padding-bottom: 5px; }
+#graph { width: 100%; height: 148px; display: block; border-radius: 12px; background: var(--surface2); }
+.meters { display: grid; grid-template-columns: auto 1fr; gap: 6px 10px; align-items: center; font-size: 12px; color: var(--muted); }
+.bar { height: 6px; border-radius: 3px; background: var(--track); overflow: hidden; }
+.bar i { display: block; height: 100%; width: 0; background: var(--in); transition: width .09s linear; }
+.bar.out i { background: var(--out); }
+.hint-line { font-size: 13px; color: var(--muted); min-height: 20px; margin: 0; }
+
+.ctl { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 12px; margin: 22px 0 6px; }
+.side { display: flex; flex-direction: column; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); text-align: center; }
+.big {
+  width: 108px; height: 108px; border-radius: 50%; border: 0; background: var(--accent); color: var(--accent-ink);
+  display: grid; place-items: center;
+  box-shadow: 0 0 0 calc(var(--lv, 0) * 22px) color-mix(in srgb, var(--accent) 30%, transparent), 0 12px 30px color-mix(in srgb, var(--accent) 45%, transparent);
+  transition: box-shadow .08s linear, transform .12s;
+}
+.big:active { transform: scale(.96); }
+.big .ic { width: 44px; height: 44px; }
+.round { width: 62px; height: 62px; border-radius: 50%; border: 2px solid var(--line); background: var(--surface); color: var(--fg); display: grid; place-items: center; }
+.round[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
+.rec-dot { width: 22px; height: 22px; border-radius: 50%; background: var(--danger); transition: border-radius .15s; }
+.round.recording { border-color: var(--danger); } .round.recording .rec-dot { border-radius: 6px; animation: blink 1s infinite; }
+.cap { text-align: center; font-size: 13px; color: var(--muted); margin: 0 0 4px; }
+
+h2.sec { font: 400 19px/1.3 var(--f-disp); margin: 26px 0 12px; }
+.presets { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.preset { min-height: 68px; padding: 10px 6px; border-radius: var(--r-s); border: 1.5px solid var(--line); background: var(--surface); text-align: center; display: flex; flex-direction: column; justify-content: center; gap: 2px; }
+.preset b { font: 400 17px/1.25 var(--f-disp); }
+.preset small { font-size: 11.5px; color: var(--muted); }
+.preset[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); box-shadow: inset 0 0 0 1px var(--accent); }
+
+.row { padding: 12px 14px 10px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-s); }
+.row + .row { margin-top: 10px; }
+.row .hd { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.row label { font-weight: 500; }
+.row output { font-variant-numeric: tabular-nums; color: var(--accent); font-weight: 700; white-space: nowrap; }
+.row .hint { color: var(--muted); font-size: 12.5px; min-height: 18px; }
+input[type=range] { width: 100%; height: 36px; margin: 2px 0 0; background: transparent; -webkit-appearance: none; appearance: none; touch-action: pan-y; }
+input[type=range]::-webkit-slider-runnable-track { height: 6px; border-radius: 3px; background: linear-gradient(to right, var(--accent) var(--p, 0%), var(--track) var(--p, 0%)); }
+input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 28px; height: 28px; border-radius: 50%; background: var(--surface); border: 3px solid var(--accent); margin-top: -11px; box-shadow: 0 2px 6px rgba(0,0,0,.28); }
+input[type=range]::-moz-range-track { height: 6px; border-radius: 3px; background: var(--track); }
+input[type=range]::-moz-range-progress { height: 6px; border-radius: 3px; background: var(--accent); }
+input[type=range]::-moz-range-thumb { width: 22px; height: 22px; border-radius: 50%; background: var(--surface); border: 3px solid var(--accent); }
+
+.seg { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; background: var(--surface2); border-radius: 12px; padding: 3px; gap: 3px; margin-bottom: 10px; }
+.seg button { border: 0; background: transparent; color: var(--muted); padding: 9px 6px; border-radius: 9px; font-weight: 500; }
+.seg button[aria-pressed="true"] { background: var(--surface); color: var(--fg); box-shadow: 0 1px 4px rgba(0,0,0,.2); }
+
+details { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-s); margin-top: 14px; }
+details > summary { list-style: none; padding: 14px; font-weight: 500; display: flex; justify-content: space-between; align-items: center; cursor: pointer; min-height: 48px; }
+details > summary::-webkit-details-marker { display: none; }
+details > summary::after { content: ""; width: 9px; height: 9px; border-right: 2px solid var(--muted); border-bottom: 2px solid var(--muted); transform: rotate(45deg); transition: transform .15s; margin-right: 4px; }
+details[open] > summary::after { transform: rotate(-135deg); }
+details .inner { padding: 0 12px 14px; display: grid; gap: 10px; }
+details .inner .row { background: var(--surface2); border-color: transparent; }
+.sw { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 14px; background: var(--surface2); border-radius: var(--r-s); }
+.sw span small { display: block; color: var(--muted); font-size: 12.5px; }
+.sw input { appearance: none; -webkit-appearance: none; width: 52px; height: 32px; border-radius: 16px; background: var(--track); position: relative; transition: background .15s; flex: none; margin: 0; }
+.sw input::after { content: ""; position: absolute; top: 4px; left: 4px; width: 24px; height: 24px; border-radius: 50%; background: #fff; transition: transform .15s; box-shadow: 0 1px 3px rgba(0,0,0,.3); }
+.sw input:checked { background: var(--accent); } .sw input:checked::after { transform: translateX(20px); }
+
+.btn { min-height: 46px; padding: 10px 16px; border-radius: 13px; border: 1.5px solid var(--line); background: var(--surface); font-weight: 500; display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
+.btn.pri { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.btn.sm { min-height: 40px; padding: 8px 12px; font-size: 14px; }
+.btn.danger { color: var(--danger); }
+.btn[disabled] { opacity: .5; }
+.btn .ic { width: 20px; height: 20px; }
+.help p, .help li { color: var(--muted); font-size: 14px; margin: 0 0 8px; }
+.help ul { margin: 0; padding-left: 18px; }
+.diag { font: 12px/1.6 ui-monospace, 'SF Mono', Menlo, monospace; color: var(--muted); white-space: pre-wrap; word-break: break-all; }
+
+.takes { display: grid; gap: 12px; }
+.empty { text-align: center; color: var(--muted); padding: 36px 12px; background: var(--surface); border: 1px dashed var(--line); border-radius: var(--r); }
+.take { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 14px; display: grid; gap: 10px; }
+.take .th { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
+.take h3 { margin: 0; font: 400 18px/1.25 var(--f-disp); overflow-wrap: anywhere; }
+.take .meta { color: var(--muted); font-size: 12.5px; font-variant-numeric: tabular-nums; }
+.take canvas { width: 100%; height: 56px; border-radius: 10px; background: var(--surface2); display: block; }
+.take .two { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.take .acts { display: flex; flex-wrap: wrap; gap: 8px; }
+.take .acts .btn { flex: 1 1 auto; }
+.seek { margin: 0; }
+.take .conv { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.take .conv .preset { min-height: 52px; }
+.take .conv .preset b { font-size: 15px; }
+.btn.on { border-color: var(--accent); background: var(--accent-soft); }
+
+.drop { display: grid; place-items: center; gap: 8px; text-align: center; padding: 28px 16px; border: 2px dashed var(--line); border-radius: var(--r); background: var(--surface); cursor: pointer; }
+.drop .ic { width: 34px; height: 34px; color: var(--accent); }
+.drop input { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+.fileinfo { margin: 12px 0 0; padding: 12px 14px; border-radius: var(--r-s); background: var(--surface2); font-size: 14px; overflow-wrap: anywhere; }
+.stack { display: grid; gap: 12px; }
+
+.tabs { position: fixed; left: 0; right: 0; bottom: 0; z-index: 20; background: color-mix(in srgb, var(--surface) 90%, transparent); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); border-top: 1px solid var(--line);
+  padding: 6px max(10px, env(safe-area-inset-right, 0px)) calc(6px + env(safe-area-inset-bottom, 0px)) max(10px, env(safe-area-inset-left, 0px)); }
+.tabs .in { max-width: 560px; margin: 0 auto; display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.tab { border: 0; background: transparent; color: var(--muted); display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 6px 4px; border-radius: 12px; font: 500 12px var(--f-body); min-height: 54px; position: relative; }
+.tab[aria-selected="true"] { color: var(--accent); background: var(--accent-soft); }
+.tab .n { position: absolute; top: 4px; left: calc(50% + 8px); min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px; background: var(--accent); color: var(--accent-ink); font-size: 11px; line-height: 18px; text-align: center; }
+
+.sheet { position: fixed; inset: 0; z-index: 40; display: flex; align-items: flex-end; justify-content: center; background: rgba(10,6,24,.55); -webkit-backdrop-filter: blur(3px); backdrop-filter: blur(3px); }
+.sheet-in { width: min(100%, 560px); background: var(--surface); color: var(--fg); border-radius: 24px 24px 0 0; padding: 22px max(18px, env(safe-area-inset-left, 0px)) calc(20px + env(safe-area-inset-bottom, 0px)) max(18px, env(safe-area-inset-right, 0px)); display: grid; gap: 12px; box-shadow: var(--shadow); }
+.sheet-in h3 { margin: 0; font: 400 22px/1.3 var(--f-disp); }
+.sheet-in p { margin: 0; color: var(--muted); font-size: 14.5px; }
+.sheet-in .btn { width: 100%; min-height: 52px; font-size: 16px; }
+.sheet-in .alt { color: var(--muted); font-size: 12.5px; text-align: center; margin: -4px 0 0; }
+.toast { position: fixed; left: 50%; bottom: calc(86px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); z-index: 30; max-width: min(92vw, 520px); display: flex; align-items: center; gap: 12px;
+  padding: 12px 16px; border-radius: 14px; background: var(--fg); color: var(--bg); font-size: 14px; box-shadow: var(--shadow); }
+.toast button { border: 0; background: transparent; color: inherit; font-weight: 700; text-decoration: underline; padding: 4px; }
+.prog { position: fixed; left: 50%; bottom: calc(86px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); z-index: 31; width: min(92vw, 520px); padding: 12px 16px; border-radius: 14px; background: var(--surface); border: 1px solid var(--line); box-shadow: var(--shadow); font-size: 14px; }
+.prog .bar { margin-top: 8px; height: 8px; } .prog .bar i { background: var(--accent); }
+@media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="i-mic" viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></symbol>
+    <symbol id="i-stop" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2.5" fill="currentColor" stroke="none"/></symbol>
+    <symbol id="i-play" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" fill="currentColor" stroke="none"/></symbol>
+    <symbol id="i-pause" viewBox="0 0 24 24"><path d="M7 5h4v14H7zM13 5h4v14h-4z" fill="currentColor" stroke="none"/></symbol>
+    <symbol id="i-phones" viewBox="0 0 24 24"><path d="M4 15v-3a8 8 0 0 1 16 0v3"/><rect x="3" y="14" width="4" height="7" rx="1.5"/><rect x="17" y="14" width="4" height="7" rx="1.5"/></symbol>
+    <symbol id="i-down" viewBox="0 0 24 24"><path d="M12 4v11M7 11l5 5 5-5M5 20h14"/></symbol>
+    <symbol id="i-share" viewBox="0 0 24 24"><circle cx="6" cy="12" r="2.5"/><circle cx="18" cy="6" r="2.5"/><circle cx="18" cy="18" r="2.5"/><path d="M8.2 10.8l7.6-3.6M8.2 13.2l7.6 3.6"/></symbol>
+    <symbol id="i-trash" viewBox="0 0 24 24"><path d="M5 7h14M10 7V4h4v3M7 7l1 13h8l1-13"/></symbol>
+    <symbol id="i-spark" viewBox="0 0 24 24"><path d="M12 3l1.8 4.7L18.5 9.5l-4.7 1.8L12 16l-1.8-4.7L5.5 9.5l4.7-1.8zM19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z"/></symbol>
+    <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M20 11a8 8 0 1 0-2.3 5.7M20 4v7h-7"/></symbol>
+    <symbol id="i-upload" viewBox="0 0 24 24"><path d="M12 16V5M7 9l5-5 5 5M5 20h14"/></symbol>
+    <symbol id="i-wave" viewBox="0 0 24 24"><path d="M3 12h2M7.5 8v8M12 4.5v15M16.5 8v8M21 10.5v3"/></symbol>
+    <symbol id="i-list" viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h10"/></symbol>
+    <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M5 12h14M14 7l5 5-5 5"/></symbol>
+  </defs>
+</svg>
+
+<div class="app">
+  <header class="top">
+    <div class="brand"><div class="logo"><svg class="ic"><use href="#i-wave"/></svg></div><h1>보이스 체인저</h1></div>
+    <div class="pill" id="status" data-k="idle"><i></i><span>대기 중</span></div>
+  </header>
+
+  <!-- ================= 변조 ================= -->
+  <section id="view-live" class="view">
+    <div id="notice" class="notice" hidden></div>
+
+    <div class="stage">
+      <div class="nums">
+        <div class="num"><small>내 목소리</small><b id="fin">—</b></div>
+        <div class="arrow"><svg class="ic"><use href="#i-arrow"/></svg></div>
+        <div class="num out"><small>변조된 목소리</small><b id="fout">—</b></div>
+      </div>
+      <canvas id="graph" aria-label="음높이 그래프: 내 목소리와 변조된 목소리"></canvas>
+      <div class="meters">
+        <span>입력</span><div class="bar"><i id="barIn"></i></div>
+        <span>출력</span><div class="bar out"><i id="barOut"></i></div>
+      </div>
+      <p class="hint-line" id="liveHint">이어폰을 끼고 시작하세요. 스피커로 들으면 소리가 되울려요.</p>
+    </div>
+
+    <div class="ctl">
+      <div class="side">
+        <button class="round" id="btnMon" aria-pressed="true" aria-label="내 귀로 듣기"><svg class="ic"><use href="#i-phones"/></svg></button>
+        <span>내 귀로 듣기</span>
+      </div>
+      <button class="big" id="btnLive" aria-label="변조 시작"><svg class="ic" id="icLive"><use href="#i-mic"/></svg></button>
+      <div class="side">
+        <button class="round" id="btnRec" aria-label="녹음 시작"><span class="rec-dot"></span></button>
+        <span id="recLbl">녹음</span>
+      </div>
+    </div>
+    <p class="cap" id="capLive">탭해서 변조 시작</p>
+
+    <h2 class="sec">목소리 고르기</h2>
+    <div class="presets" id="presets"></div>
+
+    <h2 class="sec">세부 조절</h2>
+    <div class="seg" id="modeSeg" role="group" aria-label="음높이 방식">
+      <button type="button" data-mode="0" aria-pressed="true">자동 맞춤</button>
+      <button type="button" data-mode="1" aria-pressed="false">반음 단위 수동</button>
+    </div>
+    <div id="mainRows"></div>
+
+    <details id="adv">
+      <summary>고급 설정</summary>
+      <div class="inner">
+        <div class="row" id="refRow">
+          <div class="hd"><label>내 평균 음높이</label><output id="refVal">측정 전</output></div>
+          <div class="hint">말하는 동안 자동으로 학습해요. 목소리가 바뀐 것 같으면 다시 측정하세요.</div>
+          <div style="margin-top:8px"><button type="button" class="btn sm" id="btnRelearn"><svg class="ic"><use href="#i-refresh"/></svg>다시 측정</button></div>
+        </div>
+        <div id="advRows"></div>
+        <label class="sw"><span>에코 제거<small>스피커로 들을 때만 켜세요. 목소리가 약간 뭉개질 수 있어요. (다음 시작부터 적용)</small></span><input type="checkbox" id="swEcho"></label>
+        <label class="sw"><span>노이즈 억제<small>주변 소리를 줄여 줘요. (다음 시작부터 적용)</small></span><input type="checkbox" id="swNs" checked></label>
+        <div><button type="button" class="btn sm" id="btnReset"><svg class="ic"><use href="#i-refresh"/></svg>모든 설정 초기화</button></div>
+      </div>
+    </details>
+
+    <details class="help">
+      <summary>사용 팁 · 문제 해결</summary>
+      <div class="inner">
+        <ul>
+          <li>유선 이어폰이나 헤드폰을 쓰면 되울림이 없고 지연도 가장 적어요. 블루투스 이어폰은 소리가 0.2~0.4초 늦게 들리고 마이크 음질이 낮아질 수 있어요.</li>
+          <li>처음 2~3초는 평소 말투로 말해 주세요. 내 음높이를 학습해서 목표 음높이에 맞춰요.</li>
+          <li>소리가 어색하게 들리면 '소녀' 프리셋으로 시작하세요. 음높이를 많이 올릴수록 소리가 인공적으로 변해요. '최대 올림 한도'는 +10~13반음이 가장 자연스러워요.</li>
+          <li>더 귀엽게: '귀여운 애니' 프리셋 → 최대 올림 한도 +14~16, 목소리 톤 +4~5반음. 단, 한도를 높일수록 기계음이 늘 수 있어요.</li>
+          <li>음높이가 출렁여서 어색하면 '억양 크기'를 70~90%로 낮추세요. 숨소리는 5~15%가 자연스러워요.</li>
+          <li>조용한 곳에서 쓰면 가장 좋아요. 주변 소음은 자동으로 걸러내지만, 선풍기·TV 소리가 크면 변조가 어색해질 수 있어요. 그래도 주변 소리까지 변조되면 노이즈 게이트를 올리고(-45dB 쪽), 말끝이 끊기면 내리세요.</li>
+          <li>녹음한 소리는 '녹음함'에서 원본과 비교하거나 다른 목소리로 다시 변환할 수 있어요.</li>
+        </ul>
+        <div class="diag" id="diag"></div>
+      </div>
+    </details>
+  </section>
+
+  <!-- ================= 녹음함 ================= -->
+  <section id="view-takes" class="view" hidden>
+    <h2 class="sec" style="margin-top:8px">녹음함</h2>
+    <p class="hint-line" id="takesNote" style="margin-bottom:12px">이 페이지를 닫으면 녹음이 사라져요. 필요한 건 저장해 두세요.</p>
+    <div class="takes" id="takes"></div>
+  </section>
+
+  <!-- ================= 파일 ================= -->
+  <section id="view-file" class="view" hidden>
+    <h2 class="sec" style="margin-top:8px">음성 파일 변환</h2>
+    <div class="stack">
+      <label class="drop" id="drop" for="fileIn">
+        <svg class="ic"><use href="#i-upload"/></svg>
+        <b>음성 파일 고르기</b>
+        <span class="hint-line">mp3, m4a, wav 등 · 최대 5분</span>
+        <input type="file" id="fileIn" accept="audio/*,video/*">
+      </label>
+      <div class="fileinfo" id="fileInfo" hidden></div>
+      <div id="filePick" hidden>
+        <p class="hint-line" style="margin-bottom:10px">어떤 목소리로 바꿀까요? (아래 숫자는 '목표 음높이'예요. 슬라이더 설정은 변조 탭과 같아요.)</p>
+        <div class="presets" id="filePresets"></div>
+        <div style="margin-top:12px"><button type="button" class="btn pri" id="btnConvertFile" style="width:100%"><svg class="ic"><use href="#i-spark"/></svg>이 설정으로 변환하기</button></div>
+      </div>
+      <div id="fileResult"></div>
+    </div>
+  </section>
+</div>
+
+<nav class="tabs" aria-label="화면 전환">
+  <div class="in" role="tablist">
+    <button class="tab" role="tab" data-tab="live" aria-selected="true"><svg class="ic"><use href="#i-mic"/></svg>변조</button>
+    <button class="tab" role="tab" data-tab="takes" aria-selected="false"><svg class="ic"><use href="#i-list"/></svg>녹음함<span class="n" id="takeBadge" hidden>0</span></button>
+    <button class="tab" role="tab" data-tab="file" aria-selected="false"><svg class="ic"><use href="#i-upload"/></svg>파일 변환</button>
+  </div>
+</nav>
+<div class="sheet" id="routeSheet" role="dialog" aria-modal="true" aria-labelledby="routeTitle" hidden>
+  <div class="sheet-in">
+    <h3 id="routeTitle">이어폰을 끼셨나요?</h3>
+    <p>스피커로 들으면 변조된 목소리가 마이크로 다시 들어가서 소리가 깨져요. 유선 이어폰이나 헤드폰이 가장 깨끗하고 지연도 적어요.</p>
+    <button type="button" class="btn pri" id="routeEar"><svg class="ic"><use href="#i-phones"/></svg>이어폰 끼었어요</button>
+    <button type="button" class="btn" id="routeSpk">스피커로 할게요 (에코 제거 켜기)</button>
+    <p class="alt">이 질문은 페이지를 열 때마다 한 번만 물어봐요.</p>
+  </div>
+</div>
+<div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+<div class="prog" id="prog" hidden><div id="progLbl"></div><div class="bar"><i id="progBar"></i></div></div>
+
+<script>
+/* Voice transformer engine: pitch-synchronous overlap-add (TD-PSOLA) with an independent
+   formant warp, pitch tracking, breath layer, EQ, reverb and limiter.
+   Self-contained: createVoiceEngine.toString() can be injected into an AudioWorklet. */
+function createVoiceEngine(sampleRate) {
+  'use strict';
+  const sr = Math.round(sampleRate) || 48000;
+  const PI = Math.PI, LN2 = Math.LN2;
+
+  /* ================= parameters ================= */
+  const prm = {
+    bypass: 0,     // 1 = dry signal
+    mode: 0,       // 0 = auto (target pitch), 1 = manual (semitones)
+    target: 300,   // Hz  (auto mode: where the speaker's average pitch lands)
+    semi: 0,       // semitones (manual mode)
+    formant: 4.5,  // semitones; > 0 = shorter vocal tract
+    maxUp: 12,     // semitones: the output is never raised more than this above the speaker's own pitch (keeps artefacts moderate)
+    inton: 0,      // pitch-contour depth: 0 = same as the speaker, -0.5 = half (steadier), +0.5 = 1.5x
+    breath: 0.12,  // 0..1 breathy aspiration (formant-shaped, pulse-synchronous)
+    bright: 4,     // dB, presence + high shelf
+    lowcut: 120,   // Hz high-pass (0 = off)
+    reverb: 0.1,   // 0..1
+    gate: -52,     // dB noise gate threshold
+    inGain: 0,     // dB
+    outGain: 0     // dB
+  };
+  let Fr = Math.pow(2, prm.formant / 12);
+  let gThr = Math.pow(10, prm.gate / 20), gInT = 1, gOutT = 1, revT = 0, breathT = 0, bypassT = 0;
+  let lowOn = false, brOn = false;
+
+  /* ================= biquad helpers ================= */
+  function bqDesign(type, f0, Q, gdb) {
+    const w0 = 2 * PI * Math.min(f0, sr * 0.45) / sr;
+    const c = Math.cos(w0), s = Math.sin(w0), al = s / (2 * Q);
+    const A = Math.pow(10, (gdb || 0) / 40);
+    let b0, b1, b2, a0, a1, a2;
+    if (type === 'lp') { b0 = (1 - c) / 2; b1 = 1 - c; b2 = b0; a0 = 1 + al; a1 = -2 * c; a2 = 1 - al; }
+    else if (type === 'hp') { b0 = (1 + c) / 2; b1 = -(1 + c); b2 = b0; a0 = 1 + al; a1 = -2 * c; a2 = 1 - al; }
+    else if (type === 'bp') { b0 = al; b1 = 0; b2 = -al; a0 = 1 + al; a1 = -2 * c; a2 = 1 - al; }
+    else if (type === 'peak') { b0 = 1 + al * A; b1 = -2 * c; b2 = 1 - al * A; a0 = 1 + al / A; a1 = -2 * c; a2 = 1 - al / A; }
+    else {
+      const sA = 2 * Math.sqrt(A) * al;
+      b0 = A * ((A + 1) + (A - 1) * c + sA); b1 = -2 * A * ((A - 1) + (A + 1) * c); b2 = A * ((A + 1) + (A - 1) * c - sA);
+      a0 = (A + 1) - (A - 1) * c + sA; a1 = 2 * ((A - 1) - (A + 1) * c); a2 = (A + 1) - (A - 1) * c - sA;
+    }
+    return [b0 / a0, b1 / a0, b2 / a0, a1 / a0, a2 / a0];
+  }
+  function bqNew(type, f0, Q, g) {
+    const c = bqDesign(type, f0, Q, g);
+    return { b0: c[0], b1: c[1], b2: c[2], a1: c[3], a2: c[4], z1: 0, z2: 0 };
+  }
+  function bqSet(f, type, f0, Q, g) {
+    const c = bqDesign(type, f0, Q, g);
+    f.b0 = c[0]; f.b1 = c[1]; f.b2 = c[2]; f.a1 = c[3]; f.a2 = c[4];
+  }
+  function bqRun(f, x) {
+    const y = f.b0 * x + f.z1;
+    f.z1 = f.b1 * x - f.a1 * y + f.z2 + 1e-30;
+    f.z2 = f.b2 * x - f.a2 * y;
+    return y;
+  }
+  const fHP = bqNew('hp', 70, 0.7071), fLP1 = bqNew('lp', 1100, 0.7071), fLP2 = bqNew('lp', 1100, 0.7071);
+  const fLP3 = bqNew('lp', 620, 0.7071), fLP4 = bqNew('lp', 620, 0.7071);
+  const fLow = bqNew('hp', 120, 0.7071), fPeak = bqNew('peak', 3200, 0.9, 0), fShelf = bqNew('hs', 6500, 0.7071, 0);
+  // breath: formant-shaped noise, kept above ~1.3 kHz where aspiration lives, softened at the very top
+  const fBrH = bqNew('hp', 1300, 0.6, 0), fBrH2 = bqNew('hp', 1300, 0.6, 0), fBrL = bqNew('lp', 9000, 0.7071, 0);
+
+  /* ================= buffers / state ================= */
+  const BUF = 1 << 16, M = BUF - 1;
+  const inBuf = new Float32Array(BUF), lpBuf = new Float32Array(BUF);
+  const D = Math.max(1, Math.round(sr / 8000)), srD = sr / D;
+  const DB = 1 << 13, DM = DB - 1;
+  const dBuf = new Float32Array(DB);
+  const OB = 1 << 15, OM = OB - 1;
+  const outBuf = new Float32Array(OB), brBuf = new Float32Array(OB), modBuf = new Float32Array(OB);
+  let wIdx = 0, dW = 0, dPh = 0, oRead = 0;
+  let dryTmp = new Float32Array(4096);
+  const DLY = Math.round(0.038 * sr);          // analysis look-ahead (algorithmic latency)
+  const HU = 0.0065 * sr;                      // unvoiced grain half-length
+
+  // gate / levels
+  let env = 0, gateOpen = false, gGain = 0, gIn = 1, gOut = 1, bm = 0;
+  // adaptive noise floor: minimum follower of the peak envelope (drops at once, creeps up ~4 dB/s). Steady room noise / hum
+  // therefore closes the gate by itself and is never mistaken for a voice (which used to poison the learned reference pitch).
+  let nfl = 0.006, adaptGate = true;
+  const nflUp = Math.pow(10, 4 / 20 / sr), nflFast = Math.pow(10, 14 / 20 / sr), NFL_MIN = 0.0008, NFL_MAX = 0.05;
+  const envDec = Math.exp(-1 / (0.03 * sr));
+  const gAtk = 1 - Math.exp(-1 / (0.004 * sr)), gRelC = 1 - Math.exp(-1 / (0.08 * sr));
+  let inLv = 0, outLv = 0;
+
+  /* ================= pitch tracking (NSDF on 8 kHz signal) ================= */
+  const WD = Math.round(0.044 * srD);
+  const HOPD = Math.max(6, Math.round(0.005 * srD));
+  const TMIN = Math.max(6, Math.floor(srD / 480));
+  const TMAX = Math.min(WD - 24, Math.ceil(srD / 70));
+  const nsdf = new Float32Array(TMAX + 4);
+  const wwin = new Float32Array(WD);
+  const csq = new Float64Array(WD + 1);
+  const pkLag = new Float32Array(48), pkVal = new Float32Array(48);
+  const FN = 512, FM = FN - 1;
+  const fTime = new Float64Array(FN), fT = new Float32Array(FN), fV = new Uint8Array(FN), fCl = new Float32Array(FN);
+  const RUNMIN = 4;
+  let devRun = 0, vRun = 0, pkRms = 0, fCount = 0, prevVoiced = false, prevLag = 0, nextFrameD = WD, histN = 0, stable = 0, jumpCnt = 0;
+  const hist = [0, 0, 0];
+  let refLn = Math.log(150), refN = 0;           // running reference pitch of the speaker
+  const REF_NMAX = 2000;                         // ~10 s of voiced frames
+  let f0Cur = 0;
+
+  function med3(a, b, c) { return a > b ? (b > c ? b : (a > c ? c : a)) : (a > c ? a : (b > c ? c : b)); }
+
+  function addPeak(c, n) {
+    const y0 = nsdf[c - 1], y1 = nsdf[c], y2 = nsdf[c + 1];
+    const den = y0 - 2 * y1 + y2;
+    let d = den !== 0 ? 0.5 * (y0 - y2) / den : 0;
+    if (d > 1) d = 1; else if (d < -1) d = -1;
+    let v = y1 - 0.25 * (y0 - y2) * d;
+    if (v > 1) v = 1;
+    pkLag[n] = c + d; pkVal[n] = v;
+  }
+
+  function pitchFrame() {
+    const base = dW - WD;
+    for (let i = 0; i < WD; i++) wwin[i] = dBuf[(base + i) & DM];
+    csq[0] = 0;
+    for (let i = 0; i < WD; i++) csq[i + 1] = csq[i] + wwin[i] * wwin[i];
+    const tc = (base + (WD - 1) / 2) * D + (D - 1);
+    let voiced = false, lagOut = 0, clar = 0, esc = false;
+    const rmsW = Math.sqrt(csq[WD] / WD);
+    pkRms = rmsW > pkRms ? rmsW : pkRms * 0.996;
+    if (csq[WD] > 1e-9 * WD && rmsW > 0.04 * pkRms) {
+      for (let tau = TMIN - 1; tau <= TMAX + 1; tau++) {
+        const nn = WD - tau;
+        let r = 0;
+        for (let j = 0; j < nn; j++) r += wwin[j] * wwin[j + tau];
+        const mm = csq[nn] + (csq[WD] - csq[tau]);
+        nsdf[tau] = mm > 1e-12 ? (2 * r) / mm : 0;
+      }
+      let nPk = 0, pos = TMIN;
+      while (pos < TMAX && nsdf[pos] > 0) pos++;
+      while (pos < TMAX && nsdf[pos] <= 0) pos++;
+      let cur = 0;
+      while (pos < TMAX && nPk < 46) {
+        if (nsdf[pos] > nsdf[pos - 1] && nsdf[pos] >= nsdf[pos + 1]) { if (cur === 0 || nsdf[pos] > nsdf[cur]) cur = pos; }
+        pos++;
+        if (pos < TMAX && nsdf[pos] <= 0) {
+          if (cur > 0) { addPeak(cur, nPk++); cur = 0; }
+          while (pos < TMAX && nsdf[pos] <= 0) pos++;
+        }
+      }
+      if (cur > 0 && nPk < 46) addPeak(cur, nPk++);
+      // discard super-octave candidates: a true period tau must be echoed near 2*tau
+      for (let i = 0; i < nPk; i++) {
+        const c2 = Math.round(2 * pkLag[i]);
+        if (c2 + 2 <= TMAX + 1) {
+          let q = -1;
+          for (let j = c2 - 2; j <= c2 + 2; j++) if (nsdf[j] > q) q = nsdf[j];
+          if (q < 0.45 * pkVal[i]) pkVal[i] = 0;
+        }
+      }
+      let hi = 0;
+      for (let i = 0; i < nPk; i++) if (pkVal[i] > hi) hi = pkVal[i];
+      if (hi > 0) {
+        let sel = -1;
+        if (prevVoiced && prevLag > 0) {
+          let bi = -1, bd = 1e9;
+          for (let i = 0; i < nPk; i++) {
+            if (pkVal[i] >= 0.92 * hi) { const dd = Math.abs(Math.log(pkLag[i] / prevLag)); if (dd < bd) { bd = dd; bi = i; } }
+          }
+          if (bi >= 0 && bd < 0.10) sel = bi;
+        }
+        if (sel < 0) {
+          for (let i = 0; i < nPk; i++) if (pkVal[i] >= 0.9 * hi) { sel = i; break; }
+          if (sel < 0) sel = 0;
+          if (refN > 30) {
+            const refLag = srD / Math.exp(refLn);
+            let bi = -1, bd = 1e9;
+            for (let i = 0; i < nPk; i++) {
+              if (pkVal[i] >= 0.8 * hi) { const dd = Math.abs(Math.log(pkLag[i] / refLag)); if (dd < bd) { bd = dd; bi = i; } }
+            }
+            if (bi >= 0 && bd + 0.15 < Math.abs(Math.log(pkLag[sel] / refLag))) sel = bi;
+          }
+        }
+        // escape a harmonic/formant lock (common on /i/, /u/ onsets): far from the speaker's usual pitch while an
+        // equally strong candidate sits near it -> take that one
+        if (refN > 30 && sel >= 0) {
+          const refLag = srD / Math.exp(refLn);
+          const dSel = Math.abs(Math.log(pkLag[sel] / refLag));
+          if (dSel > 0.42) {
+            let bi = -1, bd = 1e9;
+            const need = vRun < 6 ? 0.55 * hi : Math.max(0.6 * hi, pkVal[sel] - 0.04);   // onsets are often mis-locked
+            for (let i = 0; i < nPk; i++) {
+              if (pkVal[i] >= need) { const dd = Math.abs(Math.log(pkLag[i] / refLag)); if (dd < bd) { bd = dd; bi = i; } }
+            }
+            if (bi >= 0 && bd < 0.3 && bd + 0.2 < dSel) { sel = bi; esc = true; }
+          }
+        }
+        lagOut = pkLag[sel]; clar = pkVal[sel];
+        voiced = clar >= (prevVoiced ? 0.42 : 0.58);
+        if (voiced && prevVoiced && prevLag > 0 && rmsW < 0.2 * pkRms) {
+          const rt = lagOut / prevLag;
+          if (rt < 0.92 || rt > 1.08) voiced = false;
+        }
+        if (voiced && prevVoiced && prevLag > 0 && !esc) {
+          const ratio = lagOut / prevLag;
+          if (ratio < 0.75 || ratio > 1.33) {
+            if (++jumpCnt < 5) { lagOut = prevLag; clar *= 0.95; } else jumpCnt = 0;
+          } else jumpCnt = 0;
+        } else jumpCnt = 0;
+      }
+    }
+    if (voiced) {
+      const rawLag = lagOut;
+      if (prevVoiced && prevLag > 0 && Math.abs(Math.log(rawLag / prevLag)) < 0.05) stable++; else stable = 0;
+      hist[histN % 3] = lagOut; histN++;
+      if (histN >= 3) lagOut = med3(hist[0], hist[1], hist[2]);
+      prevVoiced = true; prevLag = rawLag; vRun++;
+      if (esc) { histN = 0; hist[0] = hist[1] = hist[2] = lagOut; }
+      f0Cur = sr / (lagOut * D);
+      if (clar > 0.7 && stable >= 4 && rmsW > 0.08 * pkRms) {
+        const lf = Math.log(f0Cur);
+        if (refN > 20 && stable >= 6 && Math.abs(lf - refLn) > 0.32) {
+          // a steady voice far from what was learned: the reference was probably built on noise/hum (or the speaker changed)
+          if (++devRun > (refN < 300 ? 36 : 140)) { refLn = lf; refN = 24; devRun = 0; }
+        } else {
+          devRun = 0;
+          refN = Math.min(refN + 1, REF_NMAX);
+          refLn += (lf - refLn) / refN;
+        }
+      }
+    } else { prevVoiced = false; histN = 0; f0Cur = 0; stable = 0; jumpCnt = 0; vRun = 0; devRun = 0; }
+    const i = fCount & FM;
+    fTime[i] = tc; fT[i] = voiced ? lagOut * D : 0; fCl[i] = clar; fV[i] = 0;
+    // a new voiced run only counts once RUNMIN consecutive frames agree (kills 1-3 frame false locks on formants / bursts);
+    // the pending frames are then back-filled, which is still ahead of the synthesis read position (look-ahead = 38 ms)
+    if (voiced && vRun >= RUNMIN) {
+      fV[i] = 1;
+      if (vRun === RUNMIN) {
+        for (let q = 1; q < RUNMIN; q++) fV[(fCount - q) & FM] = 1;
+        if (!chainActive) { const tFirst = fTime[(fCount - RUNMIN + 1) & FM]; if (scanPos > tFirst) scanPos = tFirst; }
+      }
+    }
+    fCount++;
+  }
+
+  let infoR = false, infoV = false, infoT = 0;
+  const HOPF = HOPD * D;
+  function frameInfoAt(t) {
+    infoR = false; infoV = false;
+    if (fCount === 0) return;
+    let i = fCount - 1;
+    if (t > fTime[i & FM] + HOPF * 1.5) return;
+    const lowest = fCount - FN + 2;
+    while (i > 0 && i > lowest && fTime[i & FM] > t) i--;
+    const ia = i & FM, ta = fTime[ia], va = fV[ia], Ta = fT[ia];
+    if (i + 1 < fCount) {
+      const ib = (i + 1) & FM, tb = fTime[ib], vb = fV[ib], Tb = fT[ib];
+      let u = (t - ta) / (tb - ta);
+      u = u < 0 ? 0 : u > 1 ? 1 : u;
+      if (va && vb) { infoV = true; infoT = Math.exp(Math.log(Ta) * (1 - u) + Math.log(Tb) * u); }
+      else if (u < 0.5) { infoV = !!va; infoT = Ta; }
+      else { infoV = !!vb; infoT = Tb; }
+    } else { infoV = !!va; infoT = Ta; }
+    infoR = true;
+  }
+
+  /* ================= pitch-mark chain (waveform-aligned epochs) ================= */
+  const EN = 1024, EM2 = EN - 1;
+  const epM = new Float64Array(EN), epT = new Float32Array(EN), epC = new Int32Array(EN);
+  let eCount = 0, chainId = 0, chainActive = false, lastM = 0, lastT = 0, scanPos = 0;
+  const SCAN = Math.max(16, Math.round(0.002 * sr));
+  const TLO = sr / 520, THI = sr / 60;
+  const refW = new Float32Array(4096), segW = new Float32Array(8192), scoreArr = new Float32Array(2048);
+
+  function pushEpoch(m, T) {
+    const i = eCount & EM2;
+    epM[i] = m; epT[i] = T < TLO ? TLO : T > THI ? THI : T; epC[i] = chainId;
+    eCount++;
+  }
+
+  function alignNCC(lm, pc, T, hh) {
+    const rc = Math.round(lm), len = 2 * hh;
+    let refE = 0;
+    for (let j = 0; j < len; j++) { const v = lpBuf[(rc - hh + j) & M]; refW[j] = v; refE += v * v; }
+    let range = Math.floor(0.25 * T); if (range < 3) range = 3;
+    const c0 = Math.round(pc), lo = c0 - range, hi = c0 + range;
+    const s0 = lo - hh, segLen = (hi - lo) + len + 1;
+    for (let j = 0; j < segLen; j++) segW[j] = lpBuf[(s0 + j) & M];
+    let best = -9, bestP = c0;
+    for (let p = lo; p <= hi; p++) {
+      let s = 0, e = 0;
+      const b = p - lo;
+      for (let j = 0; j < len; j++) { const c = segW[b + j]; s += refW[j] * c; e += c * c; }
+      const sc = s / Math.sqrt(refE * e + 1e-20) - 0.03 * Math.abs(p - pc) / range;
+      scoreArr[p - lo] = sc;
+      if (sc > best) { best = sc; bestP = p; }
+    }
+    let d = 0;
+    const ib = bestP - lo;
+    if (ib > 0 && ib < hi - lo) {
+      const y0 = scoreArr[ib - 1], y1 = scoreArr[ib], y2 = scoreArr[ib + 1], den = y0 - 2 * y1 + y2;
+      if (den < 0) d = 0.5 * (y0 - y2) / den;
+      if (d > 0.5) d = 0.5; else if (d < -0.5) d = -0.5;
+    }
+    return lm + (bestP + d - rc);
+  }
+
+  function extendChain() {
+    if (fCount === 0) return;
+    const tMax = fTime[(fCount - 1) & FM];
+    for (let guard = 0; guard < 600; guard++) {
+      if (!chainActive) {
+        if (scanPos > tMax) return;
+        frameInfoAt(scanPos);
+        if (!infoR || !infoV) { scanPos += SCAN; continue; }
+        const T = infoT;
+        if (wIdx < scanPos + 1.3 * T + 8) return;
+        let bi = Math.ceil(scanPos), bv = -1;
+        const e = Math.ceil(scanPos + T);
+        for (let i = Math.ceil(scanPos); i < e; i++) { const v = Math.abs(lpBuf[i & M]); if (v > bv) { bv = v; bi = i; } }
+        chainId++;
+        pushEpoch(bi, T);
+        chainActive = true; lastM = bi; lastT = T;
+      } else {
+        const tp = lastM + lastT;
+        if (tp > tMax) return;
+        frameInfoAt(tp);
+        if (!infoR || !infoV) { chainActive = false; scanPos = tp; continue; }
+        const T = infoT;
+        const hh = Math.max(8, Math.floor(T * 0.5));
+        const pc = lastM + T;
+        if (wIdx < pc + 0.25 * T + hh + 6) return;
+        const m = alignNCC(lastM, pc, T, hh);
+        const Tk = 0.5 * (m - lastM) + 0.5 * T;
+        pushEpoch(m, Tk);
+        lastT = Tk; lastM = m;
+      }
+    }
+  }
+
+  function nearestEpoch(t) {
+    let i = eCount - 1;
+    if (i < 0) return -1;
+    const lowest = eCount - EN + 2;
+    while (i >= 0 && i > lowest && epM[i & EM2] > t) i--;
+    let best = i;
+    if (i + 1 < eCount) {
+      if (i < 0 || Math.abs(epM[(i + 1) & EM2] - t) < Math.abs(t - epM[i & EM2])) best = i + 1;
+    }
+    return best;
+  }
+
+  /* ================= synthesis (grain scheduler) ================= */
+  const LNMAX = Math.log(760), LNMIN = Math.log(55);
+  let lnPrevOut = 0;
+  let GEXP = 0.38, GCOMP = 1.0, FEXP = 0.8;
+  let tS = 0, lastOutF = 0, lastOutAt = -1e9, fallbackCount = 0, voicedGrains = 0;
+
+  function rd(p) {
+    const i = Math.floor(p), f = p - i;
+    const a = inBuf[(i - 1) & M], b = inBuf[i & M], c = inBuf[(i + 1) & M], d = inBuf[(i + 2) & M];
+    return b + 0.5 * f * (c - a + f * (2 * a - 5 * b + 4 * c - d + f * (3 * (b - c) + d - a)));
+  }
+
+  /* ---- unvoiced sounds: noise vocoder (spectral envelope is warped, excitation is fresh noise) ---- */
+  const NU = 512, NU2 = NU >> 1, HOPU = 256;
+  const uRe = new Float64Array(NU), uIm = new Float64Array(NU);
+  const uCos = new Float64Array(NU2), uSin = new Float64Array(NU2);
+  const uRev = new Uint16Array(NU), uHann = new Float64Array(NU), uSw = new Float64Array(NU);
+  const uPow = new Float64Array(NU2 + 2), uSm = new Float64Array(NU2 + 2);
+  for (let i = 0; i < NU2; i++) { uCos[i] = Math.cos(2 * PI * i / NU); uSin[i] = Math.sin(2 * PI * i / NU); }
+  for (let i = 0, bits = Math.round(Math.log(NU) / Math.LN2); i < NU; i++) {
+    let r = 0, v = i;
+    for (let b = 0; b < bits; b++) { r = (r << 1) | (v & 1); v >>= 1; }
+    uRev[i] = r;
+  }
+  for (let n = 0; n < NU; n++) { uHann[n] = 0.5 - 0.5 * Math.cos(2 * PI * (n + 0.5) / NU); uSw[n] = Math.sin(PI * (n + 0.5) / NU); }
+  let rs2 = 0x1234567 | 0, NG = 1.633;
+  function fft(re, im, inv) {
+    for (let i = 0; i < NU; i++) {
+      const j = uRev[i];
+      if (j > i) { let t = re[i]; re[i] = re[j]; re[j] = t; t = im[i]; im[i] = im[j]; im[j] = t; }
+    }
+    for (let size = 2; size <= NU; size <<= 1) {
+      const half = size >> 1, step = NU / size;
+      for (let i = 0; i < NU; i += size) {
+        for (let j = 0, k = 0; j < half; j++, k += step) {
+          const wr = uCos[k], wi = inv ? uSin[k] : -uSin[k];
+          const a = i + j, b = a + half;
+          const tr = re[b] * wr - im[b] * wi, ti = re[b] * wi + im[b] * wr;
+          re[b] = re[a] - tr; im[b] = im[a] - ti; re[a] += tr; im[a] += ti;
+        }
+      }
+    }
+  }
+  function noiseGrain(tc, ta, F, dst) {
+    const s0 = Math.round(ta) - NU2;
+    for (let n = 0; n < NU; n++) { uRe[n] = inBuf[(s0 + n) & M] * uHann[n]; uIm[n] = 0; }
+    fft(uRe, uIm, false);
+    for (let k = 0; k <= NU2; k++) uPow[k] = uRe[k] * uRe[k] + uIm[k] * uIm[k];
+    for (let k = 0; k <= NU2; k++) {
+      let s = 0, w = 0;
+      for (let d = -2; d <= 2; d++) {
+        const kk = k + d;
+        if (kk >= 0 && kk <= NU2) { const ww = 3 - (d < 0 ? -d : d); s += ww * uPow[kk]; w += ww; }
+      }
+      uSm[k] = s / w;
+    }
+    uSm[NU2 + 1] = uSm[NU2];
+    for (let n = 0; n < NU; n++) { uRe[n] = 0; uIm[n] = 0; }
+    const invF = 1 / F;
+    for (let k = 1; k < NU2; k++) {
+      const src = k * invF;
+      if (src >= NU2) break;
+      const k0 = Math.floor(src), fr = src - k0;
+      const amp = Math.sqrt((uSm[k0] * (1 - fr) + uSm[k0 + 1] * fr) * invF);
+      rs2 ^= rs2 << 13; rs2 ^= rs2 >>> 17; rs2 ^= rs2 << 5;
+      const ph = ((rs2 >>> 0) / 4294967296) * 2 * PI;
+      const re = amp * Math.cos(ph), im = amp * Math.sin(ph);
+      uRe[k] = re; uIm[k] = im; uRe[NU - k] = re; uIm[NU - k] = -im;
+    }
+    fft(uRe, uIm, true);
+    const g = NG / NU;
+    const o0 = Math.round(tc) - NU2;
+    for (let n = 0; n < NU; n++) dst[(o0 + n) & OM] += uRe[n] * g * uSw[n];
+  }
+
+  let hook = null, lnSm = 0, holdT = 0, segT0 = 0;
+  const PSM = 0.028;            // pitch smoothing time constant (s): removes tracker jitter, keeps intonation
+  function synth(nEnd) {
+    const F = Fr;
+    for (let guard = 0; guard < 8000; guard++) {
+      const ta = tS - DLY;
+      frameInfoAt(ta);
+      let k = -1;
+      if (infoR && infoV) {
+        const kk = nearestEpoch(ta);
+        if (kk >= 0) {
+          const i = kk & EM2, Tk = epT[i];
+          if (Math.abs(epM[i] - ta) <= 0.6 * Tk && epM[i] + Tk + 6 <= wIdx) k = kk;
+        }
+      }
+      if (k >= 0) {
+        const i = k & EM2, m = epM[i], Tk = epT[i];
+        let lnIn = Math.log(sr / infoT);
+        const ref = refN > 0 ? refLn : lnIn;
+        const dtg = tS - lastOutAt;
+        let snap = false;
+        if (!(dtg < 0.02 * sr)) {
+          // voicing onset: fold an octave error back toward the speaker's usual pitch
+          if (refN > 12) { while (lnIn > ref + 0.62) lnIn -= LN2; while (lnIn < ref - 0.62) lnIn += LN2; }
+          lnSm = lnIn; holdT = 0; segT0 = tS;
+        } else {
+          let d = lnIn - lnSm;
+          if (d > 0.3 || d < -0.3) {
+            const k = Math.round(d / LN2);
+            if (k !== 0 && Math.abs(d - k * LN2) < 0.14) { lnIn -= k * LN2; d = lnIn - lnSm; }      // octave error: fold back
+          }
+          if (!snap) {
+            // a voice cannot leap several semitones within one pitch period: wait and see whether the jump persists,
+            // then glide (or, at the very start of a voiced run, accept a persistent new pitch at once)
+            if (d > 0.18 || d < -0.18) {
+              const young = tS - segT0 < 0.1 * sr;
+              if (holdT < (young ? 0.022 : 0.06) * sr) { lnIn = lnSm; holdT += dtg; }
+              else if (young && (d > 0.3 || d < -0.3)) { lnSm = lnIn; snap = true; holdT = 0; }
+            } else holdT = 0;
+            if (!snap) lnSm += (1 - Math.exp(-dtg / (PSM * sr))) * (lnIn - lnSm);
+          }
+          lnIn = lnSm;
+        }
+        if (refN > 12) { if (lnIn > ref + 0.5) lnIn = ref + 0.5; else if (lnIn < ref - 0.5) lnIn = ref - 0.5; }
+        let lnOut;
+        if (prm.mode === 0) lnOut = Math.log(prm.target > 40 ? prm.target : 40) + (1 + prm.inton) * (lnIn - ref);
+        else lnOut = lnIn + prm.semi * (LN2 / 12) + prm.inton * (lnIn - ref);
+        if (prm.mode === 0) { const cap = lnIn + prm.maxUp * (LN2 / 12); if (lnOut > cap) lnOut = cap; }
+        if (lnOut > LNMAX) lnOut = LNMAX; else if (lnOut < LNMIN) lnOut = LNMIN;
+        if (!snap && tS - lastOutAt < 0.02 * sr) {
+          // pitch can only move as fast as a real voice does (about 6 ln/s, scaled by the intonation gain)
+          const sl = 0.012 + 6 * (1 + prm.inton) * ((tS - lastOutAt) / sr);
+          if (lnOut > lnPrevOut + sl) lnOut = lnPrevOut + sl; else if (lnOut < lnPrevOut - sl) lnOut = lnPrevOut - sl;
+        }
+        lnPrevOut = lnOut;
+        let Tsyn = sr / Math.exp(lnOut);
+        let Pr = Tk / Tsyn;
+        if (Pr > 4.5) { Pr = 4.5; Tsyn = Tk / Pr; } else if (Pr < 0.45) { Pr = 0.45; Tsyn = Tk / Pr; }
+        const L = Pr > 1 ? Math.min(Tk, Math.max(0.35 * Tk, Tsyn)) : Tk;
+        const R = Tk;
+        const Lo = L / F, Ro = R / F;
+        if (tS - Lo >= nEnd) return;
+        const g = Math.pow(Pr, -GEXP) * Math.pow(F, FEXP) * GCOMP;
+        const n0 = Math.ceil(tS - Lo), n1 = Math.floor(tS + Ro);
+        const piL = PI / L, piR = PI / R;
+        for (let n = n0; n <= n1; n++) {
+          const x = (n - tS) * F;
+          const w = x < 0 ? 0.5 + 0.5 * Math.cos(piL * x) : 0.5 + 0.5 * Math.cos(piR * x);
+          outBuf[n & OM] += g * w * rd(m + x);
+        }
+        if (breathT > 0.003) {
+          // glottal-synchronous envelope: aspiration noise puffs right after each pulse
+          const a0 = tS - 0.15 * Tsyn, len = 0.65 * Tsyn;
+          for (let n = Math.ceil(a0), e = Math.floor(a0 + len); n <= e; n++) { const sv = Math.sin(PI * (n - a0) / len); modBuf[n & OM] += sv * sv; }
+        }
+        lastOutF = sr / Tsyn; lastOutAt = tS; voicedGrains++;
+        if (hook) hook(tS, sr / infoT, sr / Tsyn, Pr, g);
+        tS += Tsyn;
+      } else {
+        if (tS - NU2 >= nEnd) return;
+        let pc = ta;
+        const lim = wIdx - NU2 - 4;
+        if (pc > lim) { pc = lim; fallbackCount++; }
+        noiseGrain(tS, pc, F, outBuf);
+        tS += HOPU;
+      }
+    }
+  }
+
+  /* ================= effects: reverb / limiter ================= */
+  const combs = [1116, 1188, 1277, 1356, 1422, 1491, 1557, 1617].map(function (n) {
+    return { b: new Float32Array(Math.max(16, Math.round(n * sr / 44100))), i: 0, s: 0 };
+  });
+  const apass = [556, 441, 341, 225].map(function (n) {
+    return { b: new Float32Array(Math.max(8, Math.round(n * sr / 44100))), i: 0 };
+  });
+  const rvFb = 0.80, rvDamp = 0.35, REV_GAIN = 3.0;
+  const pdLen = Math.max(2, Math.round(0.012 * sr)), pdBuf = new Float32Array(pdLen);
+  let pdI = 0;
+  function reverbRun(x) {
+    const pd = pdBuf[pdI]; pdBuf[pdI] = x; if (++pdI === pdLen) pdI = 0;
+    const inp = pd * 0.015;
+    let o = 0;
+    for (let c = 0; c < 8; c++) {
+      const f = combs[c], y = f.b[f.i];
+      f.s = y * (1 - rvDamp) + f.s * rvDamp;
+      f.b[f.i] = inp + f.s * rvFb;
+      if (++f.i === f.b.length) f.i = 0;
+      o += y;
+    }
+    for (let a = 0; a < 4; a++) {
+      const f = apass[a], bo = f.b[f.i];
+      const y = bo - o;
+      f.b[f.i] = o + bo * 0.5;
+      if (++f.i === f.b.length) f.i = 0;
+      o = y;
+    }
+    return o;
+  }
+
+  const LN = Math.max(8, Math.round(0.0015 * sr)), LN1 = LN - 1, CEIL = 0.92;
+  const lDel = new Float32Array(LN1), lNeed = new Float32Array(LN), lAvg = new Float32Array(LN);
+  let lI = 0, lA = 0, lSum = LN, lRel = 1, lHot = LN + 2;
+  for (let i = 0; i < LN; i++) { lNeed[i] = 1; lAvg[i] = 1; }
+  const lRelC = 1 - Math.exp(-1 / (0.08 * sr));
+  function limitRun(x) {
+    const a = x < 0 ? -x : x;
+    const need = a > CEIL ? CEIL / a : 1;
+    lNeed[lI] = need;
+    if (need < 1) lHot = 0; else if (lHot < LN + 2) lHot++;
+    let mn = 1;
+    if (lHot <= LN) { for (let j = 0; j < LN; j++) if (lNeed[j] < mn) mn = lNeed[j]; }
+    lSum += mn - lAvg[lI]; lAvg[lI] = mn;
+    if (++lI === LN) lI = 0;
+    const g = lSum / LN;
+    const xd = lDel[lA]; lDel[lA] = x; if (++lA === LN1) lA = 0;
+    lRel = g < lRel ? g : Math.min(g, lRel + (1 - lRel) * lRelC);
+    return xd * lRel;
+  }
+
+  /* ================= main processing ================= */
+  let rs = 0x2545F491 | 0, envO = 0, breathG = 0, revG = 0, tB = 0, BRK = 1.6, rsB = 0x5EED1234 | 0;
+  const envOdec = Math.exp(-1 / (0.04 * sr));
+
+  function processBlock(inp, out, off, n) {
+    if (dryTmp.length < n) dryTmp = new Float32Array(n);
+    // 1) ingest
+    for (let i = 0; i < n; i++) {
+      gIn += (gInT - gIn) * 0.002;
+      let xr = inp[off + i] * gIn;
+      if (xr !== xr || xr > 8 || xr < -8) xr = 0;
+      dryTmp[i] = xr;
+      let x = bqRun(fHP, xr);
+      const ax = x < 0 ? -x : x;
+      env = ax > env ? ax : env * envDec;
+      if (env < nfl) nfl = env > NFL_MIN ? env : NFL_MIN; else { nfl *= wIdx < 3 * sr ? nflFast : nflUp; if (nfl > NFL_MAX) nfl = NFL_MAX; }
+      const tOpen = adaptGate && 3 * nfl > gThr ? 3 * nfl : gThr, tClose = adaptGate && 2 * nfl > gThr * 0.5 ? 2 * nfl : gThr * 0.5;
+      if (env > tOpen) gateOpen = true; else if (env < tClose) gateOpen = false;
+      gGain += ((gateOpen ? 1 : 0) - gGain) * (gateOpen ? gAtk : gRelC);
+      x *= gGain;
+      inBuf[wIdx & M] = x;
+      const lp = bqRun(fLP2, bqRun(fLP1, x));
+      lpBuf[wIdx & M] = lp;
+      wIdx++;
+      const lq = bqRun(fLP4, bqRun(fLP3, lp));
+      if (++dPh === D) {
+        dPh = 0; dBuf[dW & DM] = lq; dW++;
+        if (dW >= nextFrameD) { pitchFrame(); nextFrameD += HOPD; }
+      }
+      const al = ax < 0 ? -ax : ax;
+      inLv = al > inLv ? al : inLv * 0.9997;
+    }
+    // 2) analysis + synthesis scheduling
+    extendChain();
+    synth(oRead + n);
+    if (breathT > 0.003 || breathG > 0.003) {
+      while (tB - NU2 < oRead + n) {
+        const ta = tB - DLY;
+        frameInfoAt(ta);
+        if (infoR && infoV && ta + NU2 + 4 <= wIdx) { const keep = rs2; rs2 = rsB; noiseGrain(tB, ta, Fr, brBuf); rsB = rs2; rs2 = keep; }
+        tB += HOPU;
+      }
+    } else if (tB < oRead + n + NU2) tB = oRead + n + NU2;
+    // 3) output chain
+    for (let i = 0; i < n; i++) {
+      const oi = (oRead + i) & OM;
+      let y = outBuf[oi]; outBuf[oi] = 0;
+      const ay = y < 0 ? -y : y;
+      envO = ay > envO ? envO + (ay - envO) * 0.2 : envO * envOdec;
+      breathG += (breathT - breathG) * 0.002;
+      const bz = brBuf[oi], md = modBuf[oi]; brBuf[oi] = 0; modBuf[oi] = 0;
+      if (breathG > 0.003) {
+        const h = bqRun(fBrL, bqRun(fBrH2, bqRun(fBrH, bz)));
+        y += breathG * BRK * h * (0.2 + 0.8 * (md > 1 ? 1 : md));
+      }
+      if (lowOn) y = bqRun(fLow, y);
+      if (brOn) { y = bqRun(fPeak, y); y = bqRun(fShelf, y); }
+      revG += (revT - revG) * 0.002;
+      if (revG > 0.002) y += reverbRun(y) * revG * REV_GAIN;
+      bm += (bypassT - bm) * 0.004;
+      gOut += (gOutT - gOut) * 0.002;
+      let z = (bm > 0.999 ? dryTmp[i] : (bm < 0.001 ? y : y * (1 - bm) + dryTmp[i] * bm)) * gOut;
+      z = limitRun(z);
+      if (z > 1) z = 1; else if (z < -1) z = -1;
+      out[off + i] = z;
+      const az = z < 0 ? -z : z;
+      outLv = az > outLv ? az : outLv * 0.9997;
+    }
+    oRead += n;
+  }
+
+  function process(inp, out, n) {
+    n = n === undefined ? out.length : n;
+    let off = 0;
+    while (off < n) {
+      const len = Math.min(4096, n - off);
+      processBlock(inp, out, off, len);
+      off += len;
+    }
+  }
+
+  function setParams(o) {
+    for (const k in o) if (Object.prototype.hasOwnProperty.call(prm, k) && typeof o[k] === 'number' && isFinite(o[k])) prm[k] = o[k];
+    Fr = Math.pow(2, prm.formant / 12);
+    if (Fr < 0.6) Fr = 0.6; else if (Fr > 2.0) Fr = 2.0;
+    gThr = Math.pow(10, prm.gate / 20);
+    adaptGate = prm.gate > -78;
+    gInT = Math.pow(10, prm.inGain / 20);
+    gOutT = Math.pow(10, prm.outGain / 20);
+    lowOn = prm.lowcut > 30;
+    if (lowOn) bqSet(fLow, 'hp', prm.lowcut, 0.7071, 0);
+    brOn = Math.abs(prm.bright) > 0.1;
+    bqSet(fShelf, 'hs', 6500, 0.7071, prm.bright);
+    bqSet(fPeak, 'peak', 3200, 0.9, prm.bright * 0.45);
+    breathT = prm.breath; revT = prm.reverb; bypassT = prm.bypass ? 1 : 0;
+  }
+
+  function relearn() { refN = 0; }
+  function tune(a, b, c, d) { if (a !== undefined) GEXP = a; if (b !== undefined) GCOMP = b; if (c !== undefined) NG = c; if (d !== undefined) BRK = d; }
+  function setHook(f) { hook = f; }
+
+  const status = { inLv: 0, outLv: 0, f0In: 0, f0Out: 0, ref: 0, refN: 0, fallback: 0, latency: DLY / sr };
+  function getStatus() {
+    status.inLv = inLv; status.outLv = outLv;
+    status.f0In = f0Cur;
+    status.f0Out = (tS - lastOutAt) < 0.04 * sr ? lastOutF : 0;
+    status.ref = refN > 0 ? Math.exp(refLn) : 0;
+    status.refN = refN;
+    status.fallback = fallbackCount;
+    inLv *= 0.5; outLv *= 0.5;
+    return status;
+  }
+  function setRef(hz, n) {
+    if (hz > 40 && hz < 800) { refLn = Math.log(hz); refN = Math.max(1, Math.min(REF_NMAX, (n | 0) || 300)); }
+  }
+  function reset() { /* new engine instance recommended */ }
+
+  setParams({});
+  return { process: process, setParams: setParams, getStatus: getStatus, relearn: relearn, setRef: setRef, tune: tune, setHook: setHook,
+           latencySamples: DLY, sampleRate: sr, _frames: function () { const r = []; for (let i = Math.max(0, fCount - FN + 2); i < fCount; i++) r.push([fTime[i & FM] / sr, fV[i & FM] ? sr / fT[i & FM] : 0, fCl[i & FM]]); return r; },
+           _dbg: function () { return { fallbackCount: fallbackCount, voicedGrains: voicedGrains, eCount: eCount, fCount: fCount, refHz: Math.exp(refLn), refN: refN }; } };
+}
+
+</script>
+<script>
+(() => {
+'use strict';
+
+/* ================= constants ================= */
+const SETTINGS_KEY = 'vc.settings.v3';   // v3: milder default pitch + raise limit; older saved values are not reused
+const MAX_REC_SEC = 300, MAX_FILE_SEC = 300, REC_TAIL_MS = 450;
+const BASE = { mode: 0, target: 240, semi: 10, maxUp: 12, formant: 3.2, inton: -0.1, breath: 0.08, bright: 2.5, lowcut: 140, reverb: 0.05, gate: -50, inGain: 0, outGain: 3, bypass: 0 };
+const PRESETS = [
+  { id: 'girl',  name: '소녀',        sub: '가장 자연스러워요', p: { target: 240, maxUp: 12, formant: 3.2, inton: -0.1, breath: 0.08, bright: 2.5, lowcut: 140, reverb: 0.05 } },
+  { id: 'moe',   name: '귀여운 애니', sub: '높고 귀여운 모에',   p: { target: 290, maxUp: 14, formant: 4.0, inton: -0.1, breath: 0.1, bright: 3.0, lowcut: 150, reverb: 0.06 } },
+  { id: 'onee',  name: '언니',        sub: '차분하고 성숙하게', p: { target: 200, maxUp: 10, formant: 2.2, inton: -0.2, breath: 0.12, bright: 1.5, lowcut: 120, reverb: 0.06 } },
+  { id: 'pure',  name: '청순',        sub: '속삭이듯 부드럽게', p: { target: 250, maxUp: 12, formant: 3.2, inton: -0.2, breath: 0.25, bright: 2.5, lowcut: 140, reverb: 0.12 } },
+  { id: 'tsun',  name: '츤데레',      sub: '통통 튀는 말투', p: { target: 280, maxUp: 13, formant: 3.6, inton: 0.15, breath: 0.06, bright: 4.0, lowcut: 150, reverb: 0.04 } },
+  { id: 'loli',  name: '로리',        sub: '어린아이 같은 소리', p: { target: 360, maxUp: 17, formant: 5.5, inton: 0.0, breath: 0.1, bright: 3.5, lowcut: 190, reverb: 0.05 } },
+  { id: 'fairy', name: '요정',        sub: '맑고 아주 높게', p: { target: 420, maxUp: 19, formant: 6.5, inton: 0.0, breath: 0.15, bright: 4.5, lowcut: 210, reverb: 0.3 } },
+  { id: 'ojisan',name: '아저씨',      sub: '굵고 낮게', p: { target: 100, maxUp: 12, formant: -3.5, inton: -0.2, breath: 0, bright: -1, lowcut: 0, reverb: 0 } },
+  { id: 'orig',  name: '원본',        sub: '변조 없이', bypass: true }
+];
+const pct = v => Math.round(v * 100) + '%';
+const sgn = (v, d, u) => (v > 0 ? '+' : '') + v.toFixed(d) + u;
+const SLIDERS = {
+  target:  { label: '목표 음높이', min: 90, max: 520, step: 5, fmt: v => v + ' Hz',
+    hint: v => v < 130 ? '낮은 남성 목소리' : v < 175 ? '중성적인 저음' : v < 215 ? '성인 여성 목소리' : v < 270 ? '여성 · 소녀' : v < 350 ? '높은 애니 목소리' : v < 430 ? '어린아이 · 로리' : '요정 · 매우 높음' },
+  semi:    { label: '음높이 이동', min: -12, max: 24, step: 1, fmt: v => sgn(v, 0, ' 반음'), hint: v => v === 12 ? '한 옥타브 위' : v === 0 ? '그대로' : v === 24 ? '두 옥타브 위' : '12반음 = 1옥타브' },
+  formant: { label: '목소리 톤 (몸집 느낌)', min: -6, max: 10, step: 0.1, fmt: v => sgn(v, 1, ' 반음'),
+    hint: v => v < -2 ? '굵고 큰 몸집' : v < 1 ? '원래 몸집 느낌' : v < 3.5 ? '여성 느낌' : v < 6 ? '작고 귀여운 느낌' : '아이 · 요정 느낌' },
+  maxUp:   { label: '최대 올림 한도', min: 4, max: 24, step: 1, fmt: v => '+' + v + ' 반음',
+    hint: v => v < 8 ? '조금만 올려서 자연스럽지만 중성적이에요' : v < 13 ? '자연스러운 여성 음역 (추천)' : v < 17 ? '더 높고 귀엽게 (조금 인공적일 수 있어요)' : '아주 높게 (소리가 기계처럼 변할 수 있어요)' },
+  inton:   { label: '억양 크기', min: -0.8, max: 0.6, step: 0.05, fmt: v => Math.round((1 + v) * 100) + '%',
+    hint: v => v < -0.45 ? '거의 일정한 음높이 (로봇 느낌)' : v < -0.05 ? '안정적이고 차분하게 (추천)' : v < 0.15 ? '내 말투 그대로' : '말투를 과장해서 통통 튀게' },
+  breath:  { label: '숨소리', min: 0, max: 1, step: 0.01, fmt: pct, hint: v => v < 0.05 ? '숨소리 없음' : v < 0.3 ? '살짝 숨 섞인 부드러운 소리' : v < 0.6 ? '속삭이듯 숨이 많이 섞인 소리' : '거의 속삭임' },
+  bright:  { label: '밝기', min: -6, max: 9, step: 0.5, fmt: v => sgn(v, 1, ' dB'), hint: () => '고음을 키워 또렷하고 맑게' },
+  reverb:  { label: '울림', min: 0, max: 0.8, step: 0.01, fmt: pct, hint: () => '방 안에서 말하는 듯한 잔향' },
+  gate:    { label: '노이즈 게이트', min: -75, max: -30, step: 1, fmt: v => v + ' dB', hint: () => '이보다 작은 소리는 무시해요 (-50dB 근처 추천). 주변 소음은 자동으로도 걸러내요' },
+  inGain:  { label: '마이크 감도', min: -12, max: 18, step: 1, fmt: v => sgn(v, 0, ' dB'), hint: () => '입력이 작으면 올리세요' },
+  outGain: { label: '출력 볼륨', min: -12, max: 12, step: 1, fmt: v => sgn(v, 0, ' dB'), hint: () => '소리가 작으면 올리세요' },
+  lowcut:  { label: '저음 컷', min: 0, max: 300, step: 10, fmt: v => v ? v + ' Hz' : '끔', hint: () => '낮은 울림을 깎아 더 가볍게' }
+};
+const MAIN_KEYS = ['target', 'semi', 'maxUp', 'formant', 'inton', 'breath', 'bright', 'reverb'];
+const ADV_KEYS = ['gate', 'inGain', 'outGain', 'lowcut'];
+
+/* ================= helpers ================= */
+const $ = (s, r) => (r || document).querySelector(s);
+const $$ = (s, r) => Array.from((r || document).querySelectorAll(s));
+const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const mmss = s => { s = Math.max(0, Math.round(s)); return String(Math.floor(s / 60)).padStart(2, '0') + ':' + String(s % 60).padStart(2, '0'); };
+const tick = () => new Promise(r => setTimeout(r, 0));
+const icon = (id, cls) => '<svg class="ic' + (cls ? ' ' + cls : '') + '"><use href="#i-' + id + '"/></svg>';
+const presetById = id => PRESETS.find(p => p.id === id);
+
+/* ================= state ================= */
+const S = { params: Object.assign({}, BASE), presetId: 'girl', monitor: true, echo: false, ns: true, savedRef: 0 };
+const R = { live: false, starting: false, rec: false, ctx: null, stream: null, src: null, vn: null, mon: null, hist: [], inLv: 0, outLv: 0, f0i: 0, f0o: 0, ref: 0, raf: 0,
+  recDry: [], recWet: [], recStart: 0, recSamples: 0, recMeta: null, wl: null, workletReady: false, workletUrl: '', engineMode: '' };
+const takes = [];
+let takeCounter = 0, takeUid = 0;
+
+function loadSettings() {
+  try {
+    const j = JSON.parse(localStorage.getItem(SETTINGS_KEY) || 'null');
+    if (!j) return;
+    if (j.params) for (const k of Object.keys(BASE)) {
+      const v = j.params[k];
+      if (typeof v === 'number' && isFinite(v)) { const d = SLIDERS[k]; S.params[k] = d ? clamp(v, d.min, d.max) : v; }
+    }
+    S.params.bypass = j.params && j.params.bypass ? 1 : 0;
+    S.params.mode = j.params && j.params.mode === 1 ? 1 : 0;
+    if (j.presetId === null || presetById(j.presetId)) S.presetId = j.presetId;
+    S.monitor = j.monitor !== false; S.echo = !!j.echo; S.ns = j.ns !== false;
+    S.savedRef = typeof j.savedRef === 'number' ? j.savedRef : 0;
+  } catch (e) { /* storage may be unavailable */ }
+}
+let saveT = 0;
+function saveSettings() {
+  clearTimeout(saveT);
+  saveT = setTimeout(() => {
+    try { localStorage.setItem(SETTINGS_KEY, JSON.stringify({ params: S.params, presetId: S.presetId, monitor: S.monitor, echo: S.echo, ns: S.ns, savedRef: S.savedRef })); } catch (e) { /* ignore */ }
+  }, 250);
+}
+
+/* ================= status / toast / progress ================= */
+function setStatus(text, kind) { const p = $('#status'); p.dataset.k = kind || 'idle'; $('span', p).textContent = text; }
+let toastT = 0;
+function toast(msg, action, ms) {
+  const t = $('#toast');
+  t.innerHTML = '<span>' + esc(msg) + '</span>';
+  if (action) { const b = document.createElement('button'); b.type = 'button'; b.textContent = action.label; b.onclick = () => { t.hidden = true; action.fn(); }; t.appendChild(b); }
+  t.hidden = false; clearTimeout(toastT); toastT = setTimeout(() => { t.hidden = true; }, ms || 3800);
+}
+function setProg(label, f) { const p = $('#prog'); p.hidden = false; $('#progLbl').textContent = label; $('#progBar').style.width = Math.round(clamp(f, 0, 1) * 100) + '%'; }
+function hideProg() { $('#prog').hidden = true; }
+
+/* ================= UI: sliders / presets ================= */
+function buildRow(key) {
+  const d = SLIDERS[key];
+  const row = document.createElement('div');
+  row.className = 'row'; row.id = 'row-' + key;
+  row.innerHTML = '<div class="hd"><label for="s-' + key + '">' + d.label + '</label><output id="o-' + key + '" for="s-' + key + '"></output></div>' +
+    '<input id="s-' + key + '" type="range" min="' + d.min + '" max="' + d.max + '" step="' + d.step + '">' +
+    '<div class="hint" id="h-' + key + '"></div>';
+  return row;
+}
+function updateRowText(key) {
+  const d = SLIDERS[key], inp = $('#s-' + key);
+  const v = parseFloat(inp.value);
+  $('#o-' + key).textContent = d.fmt(v);
+  $('#h-' + key).textContent = d.hint ? d.hint(v) : '';
+  inp.style.setProperty('--p', ((v - d.min) / (d.max - d.min) * 100) + '%');
+}
+function syncUI() {
+  for (const key of Object.keys(SLIDERS)) { const inp = $('#s-' + key); if (inp) { inp.value = S.params[key]; updateRowText(key); } }
+  $('#row-target').hidden = S.params.mode !== 0;
+  $('#row-semi').hidden = S.params.mode !== 1;
+  $('#row-maxUp').hidden = S.params.mode !== 0;
+  $$('#modeSeg button').forEach(b => b.setAttribute('aria-pressed', String(+b.dataset.mode === S.params.mode)));
+  $$('#presets .preset, #filePresets .preset').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.preset === S.presetId)));
+  $('#btnMon').setAttribute('aria-pressed', String(S.monitor));
+  $('#swEcho').checked = S.echo; $('#swNs').checked = S.ns;
+}
+function buildStatic() {
+  const main = $('#mainRows');
+  MAIN_KEYS.forEach(k => main.appendChild(buildRow(k)));
+  const adv = $('#advRows');
+  ADV_KEYS.forEach(k => adv.appendChild(buildRow(k)));
+  const mk = list => list.map(p => '<button type="button" class="preset" data-preset="' + p.id + '" aria-pressed="false"><b>' + p.name + '</b><small>' + p.sub + '</small></button>').join('');
+  $('#presets').innerHTML = mk(PRESETS);
+  $('#filePresets').innerHTML = mk(PRESETS.filter(p => !p.bypass));
+}
+
+let sendQueued = false;
+function queueSend() {
+  if (sendQueued) return; sendQueued = true;
+  requestAnimationFrame(() => { sendQueued = false; if (R.vn) R.vn.send({ t: 'p', p: S.params }); });
+}
+function applyPreset(id) {
+  const p = presetById(id); if (!p) return;
+  S.presetId = id;
+  if (p.bypass) { S.params.bypass = 1; }
+  else { Object.assign(S.params, p.p, { bypass: 0, mode: 0 }); }
+  syncUI(); queueSend(); saveSettings();
+}
+function wireStatic() {
+  $$('#view-live .presets .preset').forEach(b => b.addEventListener('click', () => applyPreset(b.dataset.preset)));
+  $$('#filePresets .preset').forEach(b => b.addEventListener('click', () => { applyPreset(b.dataset.preset); }));
+  for (const key of Object.keys(SLIDERS)) {
+    $('#s-' + key).addEventListener('input', e => {
+      S.params[key] = parseFloat(e.target.value);
+      if (S.params.bypass) S.params.bypass = 0;
+      S.presetId = null;
+      updateRowText(key);
+      $$('#presets .preset, #filePresets .preset').forEach(b => b.setAttribute('aria-pressed', 'false'));
+      queueSend(); saveSettings();
+    });
+  }
+  $$('#modeSeg button').forEach(b => b.addEventListener('click', () => { S.params.mode = +b.dataset.mode; S.presetId = null; syncUI(); queueSend(); saveSettings(); }));
+  $('#btnMon').addEventListener('click', () => { S.monitor = !S.monitor; $('#btnMon').setAttribute('aria-pressed', String(S.monitor)); if (R.mon) R.mon.gain.value = S.monitor ? 1 : 0; saveSettings(); });
+  $('#swEcho').addEventListener('change', e => { S.echo = e.target.checked; saveSettings(); });
+  $('#swNs').addEventListener('change', e => { S.ns = e.target.checked; saveSettings(); });
+  $('#btnRelearn').addEventListener('click', () => {
+    if (R.vn) { R.vn.send({ t: 'learn' }); R.ref = 0; $('#refVal').textContent = '측정 중…'; toast('평소 말투로 2~3초 말해 주세요'); }
+    else toast('먼저 변조를 시작해 주세요');
+  });
+  $('#btnReset').addEventListener('click', () => {
+    S.params = Object.assign({}, BASE); S.presetId = 'girl'; S.monitor = true; S.echo = false; S.ns = true; S.savedRef = 0;
+    syncUI(); queueSend(); saveSettings(); toast('설정을 초기화했어요');
+  });
+  $$('.tab').forEach(t => t.addEventListener('click', () => showTab(t.dataset.tab)));
+  $('#btnLive').addEventListener('click', () => { if (R.live) stopLive(); else if (R.routeAsked) startLive(); else askRoute(false); });
+  $('#btnRec').addEventListener('click', onRecClick);
+  $('#routeEar').addEventListener('click', () => chooseRoute(false));
+  $('#routeSpk').addEventListener('click', () => chooseRoute(true));
+  $('#routeSheet').addEventListener('click', e => { if (e.target.id === 'routeSheet') $('#routeSheet').hidden = true; });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') $('#routeSheet').hidden = true; });
+}
+// Before the first start of a page visit, ask about earphones: a speaker would feed the converted voice back into the mic.
+function askRoute(thenRecord) { R.pendingRec = !!thenRecord; $('#routeSheet').hidden = false; $('#routeEar').focus(); }
+function chooseRoute(speaker) {
+  $('#routeSheet').hidden = true; R.routeAsked = true;
+  if (speaker) { S.echo = true; $('#swEcho').checked = true; saveSettings(); }
+  const rec = R.pendingRec; R.pendingRec = false;
+  startLive().then(() => { if (rec && R.live) startRec(); });
+}
+function showTab(name) {
+  $$('.view').forEach(v => { v.hidden = v.id !== 'view-' + name; });
+  $$('.tab').forEach(t => t.setAttribute('aria-selected', String(t.dataset.tab === name)));
+  window.scrollTo(0, 0);
+  if (name === 'live') requestAnimationFrame(drawGraph);
+  if (name === 'takes') drawAllWaves();
+}
+
+/* ================= audio engine plumbing ================= */
+// The same core runs inside an AudioWorklet (preferred) or on the main thread (fallback / offline).
+function vcCoreFactory(createVoiceEngine) {
+  return function VCCore(sr, options, post) {
+    const eng = createVoiceEngine(sr);
+    eng.setParams(options.params || {});
+    if (options.ref) eng.setRef(options.ref, 400);
+    let rec = false, cap = 0, dryC = new Float32Array(4096), wetC = new Float32Array(4096), blocks = 0;
+    function flush() {
+      if (cap > 0) { const d = dryC.slice(0, cap), w = wetC.slice(0, cap); post({ t: 'rec', d: d, w: w }, [d.buffer, w.buffer]); cap = 0; }
+    }
+    this.latency = eng.latencySamples;
+    this.process = function (inp, outL, outR, n) {
+      eng.process(inp, outL, n);
+      if (outR) outR.set(outL.subarray(0, n));
+      if (rec) {
+        if (cap + n > dryC.length) flush();
+        dryC.set(inp.subarray(0, n), cap); wetC.set(outL.subarray(0, n), cap); cap += n;
+        if (cap >= 4096) flush();
+      }
+      blocks += n;
+      if (blocks >= 1024) {
+        blocks = 0;
+        const s = eng.getStatus();
+        post({ t: 's', i: s.inLv, o: s.outLv, fi: s.f0In, fo: s.f0Out, r: s.ref, rn: s.refN });
+      }
+    };
+    this.message = function (m) {
+      if (m.t === 'p') eng.setParams(m.p);
+      else if (m.t === 'learn') eng.relearn();
+      else if (m.t === 'rec') { if (m.on) { rec = true; cap = 0; } else { flush(); rec = false; post({ t: 'recEnd' }); } }
+    };
+  };
+}
+function workletMain(createVoiceEngine, vcCoreFactory) {
+  const VCCore = vcCoreFactory(createVoiceEngine);
+  class VCProc extends AudioWorkletProcessor {
+    constructor(opts) {
+      super();
+      const o = (opts && opts.processorOptions) || {};
+      this.core = new VCCore(sampleRate, o, (m, tr) => this.port.postMessage(m, tr));
+      this.port.onmessage = e => this.core.message(e.data);
+    }
+    process(inputs, outputs) {
+      const out = outputs[0], inp = inputs[0] && inputs[0][0];
+      if (!out || !out[0]) return true;
+      const n = out[0].length;
+      if (!inp) { for (let c = 0; c < out.length; c++) out[c].fill(0); return true; }
+      this.core.process(inp, out[0], out[1] || null, n);
+      return true;
+    }
+  }
+  registerProcessor('voice-changer', VCProc);
+}
+const VCCore = vcCoreFactory(createVoiceEngine);
+function workletSource() {
+  return createVoiceEngine.toString() + '\n(' + workletMain.toString() + ')(createVoiceEngine, ' + vcCoreFactory.toString() + ');';
+}
+
+function ensureCtx() {
+  if (!R.ctx) {
+    const AC = window.AudioContext || window.webkitAudioContext;
+    R.ctx = new AC({ latencyHint: 'interactive' });
+  }
+  return R.ctx;
+}
+
+async function loadWorklet(ctx) {
+  const src = workletSource();
+  const asBlob = () => URL.createObjectURL(new Blob([src], { type: 'application/javascript' }));
+  const asData = () => 'data:application/javascript;base64,' + btoa(unescape(encodeURIComponent(src)));
+  // a page opened from a file has an opaque origin, where blob: modules are refused but data: ones load
+  const tries = location.protocol === 'file:' ? [asData, asBlob] : [asBlob, asData];
+  let last = null;
+  for (const mkUrl of tries) {
+    let url = '';
+    try { url = mkUrl(); await ctx.audioWorklet.addModule(url); return true; }
+    catch (e) { last = e; console.warn('addModule failed', e); }
+    finally { if (url.startsWith('blob:')) URL.revokeObjectURL(url); }
+  }
+  throw last || new Error('worklet');
+}
+async function makeVoiceNode(ctx, post) {
+  const opts = { params: Object.assign({}, S.params), ref: S.savedRef };
+  if (ctx.audioWorklet && typeof AudioWorkletNode !== 'undefined') {
+    try {
+      if (!R.workletReady) { await loadWorklet(ctx); R.workletReady = true; }
+      const node = new AudioWorkletNode(ctx, 'voice-changer', { numberOfInputs: 1, numberOfOutputs: 1, outputChannelCount: [2], channelCount: 1, channelCountMode: 'explicit', processorOptions: opts });
+      node.port.onmessage = e => post(e.data);
+      return { input: node, output: node, mode: 'AudioWorklet', send: m => node.port.postMessage(m), close() { node.port.onmessage = null; try { node.disconnect(); } catch (e) { /* */ } } };
+    } catch (err) { console.warn('AudioWorklet unavailable, using fallback', err); }
+  }
+  const core = new VCCore(ctx.sampleRate, opts, post);
+  const sp = ctx.createScriptProcessor(2048, 1, 2);
+  sp.onaudioprocess = ev => {
+    const o = ev.outputBuffer;
+    core.process(ev.inputBuffer.getChannelData(0), o.getChannelData(0), o.numberOfChannels > 1 ? o.getChannelData(1) : null, o.length);
+  };
+  return { input: sp, output: sp, mode: 'ScriptProcessor(호환 모드)', send: m => core.message(m), close() { sp.onaudioprocess = null; try { sp.disconnect(); } catch (e) { /* */ } } };
+}
+
+const med3 = (a, b, c) => a > b ? (b > c ? b : (a > c ? c : a)) : (a > c ? a : (b > c ? c : b));
+const pf = { i1: 0, i2: 0, o1: 0, o2: 0 };
+function onNodeMsg(m) {
+  if (m.t === 's') {
+    // median-of-3 so one stray pitch estimate at the end of a word does not flash on the graph
+    const fi = med3(pf.i2, pf.i1, m.fi), fo = med3(pf.o2, pf.o1, m.fo);
+    pf.i2 = pf.i1; pf.i1 = m.fi; pf.o2 = pf.o1; pf.o1 = m.fo;
+    R.inLv = m.i; R.outLv = m.o; R.f0i = fi; R.f0o = fo;
+    const now = performance.now();
+    R.hist.push({ t: now, fi: fi, fo: fo });
+    while (R.hist.length && now - R.hist[0].t > 7500) R.hist.shift();
+    if (m.r > 0) { R.ref = m.r; if (m.rn > 60) S.savedRef = m.r; }
+  } else if (m.t === 'rec') {
+    R.recDry.push(f32ToI16(m.d)); R.recWet.push(f32ToI16(m.w)); R.recSamples += m.d.length;
+    if (R.recSamples >= MAX_REC_SEC * R.ctx.sampleRate && R.rec) stopRec();
+  } else if (m.t === 'recEnd') {
+    finishRecording();
+  }
+}
+
+function micError(err) {
+  const n = err && err.name;
+  if (err && err.message === 'INSECURE') return '이 방식으로 열면 브라우저가 마이크를 막아요. 아래 안내를 확인해 주세요.';
+  if (n === 'NotAllowedError' || n === 'SecurityError') return '마이크 권한이 꺼져 있어요. 주소창 왼쪽 아이콘 → 권한 → 마이크를 허용해 주세요.';
+  if (n === 'NotFoundError' || n === 'OverconstrainedError') return '사용할 수 있는 마이크를 찾지 못했어요.';
+  if (n === 'NotReadableError') return '다른 앱이 마이크를 쓰고 있어요. 그 앱을 닫고 다시 시도해 주세요.';
+  return '시작하지 못했어요: ' + (err && err.message ? err.message : err);
+}
+
+async function startLive() {
+  if (R.live || R.starting) return;
+  R.starting = true; setStatus('마이크 연결 중…', 'busy');
+  try {
+    if (!window.isSecureContext || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) throw new Error('INSECURE');
+    const ctx = ensureCtx();
+    await ctx.resume();
+    R.stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: S.echo, noiseSuppression: S.ns, autoGainControl: false, channelCount: 1 } });
+    R.vn = await makeVoiceNode(ctx, onNodeMsg);
+    R.src = ctx.createMediaStreamSource(R.stream);
+    R.mon = ctx.createGain(); R.mon.gain.value = S.monitor ? 1 : 0;
+    R.src.connect(R.vn.input); R.vn.output.connect(R.mon); R.mon.connect(ctx.destination);
+    R.live = true; R.hist = []; R.ref = 0;
+    setLiveUI(true);
+    lockScreen();
+    loop();
+    refreshDiag();
+  } catch (err) {
+    console.error(err);
+    cleanupAudio();
+    setStatus('시작 실패', 'err');
+    const n = $('#notice'); n.hidden = false;
+    n.innerHTML = '<b class="nt">마이크를 켤 수 없어요</b>' + esc(micError(err)) + (err && err.message === 'INSECURE' ? insecureHelp() : '');
+    n.scrollIntoView({ block: 'nearest' });
+  } finally { R.starting = false; }
+}
+function insecureHelp() {
+  return '<ul><li>이 파일을 <b>크롬(Chrome)</b>에서 열어 보세요. 파일 앱에서 눌렀다면 "Chrome으로 열기"를 고르세요.</li>' +
+    '<li>그래도 안 되면 https 주소로 열어야 해요. 파일을 GitHub Pages나 Netlify 같은 곳에 올린 뒤 그 주소로 접속하세요.</li>' +
+    '<li>지금도 \'파일 변환\' 탭에서는 저장된 음성 파일을 변환할 수 있어요.</li></ul>';
+}
+function cleanupAudio() {
+  try { if (R.vn) R.vn.close(); } catch (e) { /* */ }
+  try { if (R.src) R.src.disconnect(); } catch (e) { /* */ }
+  try { if (R.mon) R.mon.disconnect(); } catch (e) { /* */ }
+  if (R.stream) R.stream.getTracks().forEach(t => t.stop());
+  R.vn = null; R.src = null; R.mon = null; R.stream = null;
+}
+function stopLive() {
+  if (!R.live) return;
+  if (R.rec) { R.stopAfter = true; stopRec(); } else finishStop();
+}
+function finishStop() {
+  R.live = false; cleanupAudio(); unlockScreen();
+  if (R.ctx && R.ctx.state === 'running') R.ctx.suspend().catch(() => {});
+  setLiveUI(false); saveSettings();
+}
+function setLiveUI(on) {
+  $('#icLive').innerHTML = '<use href="#i-' + (on ? 'stop' : 'mic') + '"/>';
+  $('#btnLive').setAttribute('aria-label', on ? '변조 정지' : '변조 시작');
+  $('#capLive').textContent = on ? '변조 중 · 탭해서 정지' : '탭해서 변조 시작';
+  setStatus(on ? '변조 중' : '대기 중', on ? 'live' : 'idle');
+  $('#liveHint').textContent = on ? '평소 말투로 2~3초 말해 주세요. 내 목소리 높이를 학습해요.' : '이어폰을 끼고 시작하세요. 스피커로 들으면 소리가 되울려요.';
+  if (!on) { $('#btnLive').style.setProperty('--lv', 0); $('#barIn').style.width = '0'; $('#barOut').style.width = '0'; $('#fin').textContent = '—'; $('#fout').textContent = '—'; }
+}
+async function lockScreen() { try { if (navigator.wakeLock) R.wl = await navigator.wakeLock.request('screen'); } catch (e) { /* optional */ } }
+function unlockScreen() { try { if (R.wl) R.wl.release(); } catch (e) { /* */ } R.wl = null; }
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && R.live) { lockScreen(); if (R.ctx && R.ctx.state !== 'running') R.ctx.resume().catch(() => {}); } });
+
+/* ================= live visuals ================= */
+const cv = $('#graph'), g2 = cv.getContext('2d');
+function css(n) { return getComputedStyle(document.documentElement).getPropertyValue(n).trim(); }
+function fitCanvas(c) {
+  const dpr = Math.min(window.devicePixelRatio || 1, 3), w = c.clientWidth, h = c.clientHeight;
+  if (!w) return false;
+  if (c.width !== Math.round(w * dpr) || c.height !== Math.round(h * dpr)) { c.width = Math.round(w * dpr); c.height = Math.round(h * dpr); }
+  return dpr;
+}
+const FMIN = 70, FMAX = 720;
+function drawGraph() {
+  const dpr = fitCanvas(cv); if (!dpr) return;
+  const W = cv.width, H = cv.height, pad = 8 * dpr;
+  const yOf = f => H - pad - (Math.log(f / FMIN) / Math.log(FMAX / FMIN)) * (H - 2 * pad);
+  g2.clearRect(0, 0, W, H);
+  g2.font = (10 * dpr) + 'px ' + css('--f-body'); g2.textBaseline = 'middle';
+  const grid = css('--grid'), mut = css('--muted');
+  g2.lineWidth = 1 * dpr;
+  for (const f of [100, 200, 300, 500]) {
+    const y = yOf(f); g2.strokeStyle = grid; g2.beginPath(); g2.moveTo(0, y); g2.lineTo(W, y); g2.stroke();
+    g2.fillStyle = mut; g2.fillText(f + 'Hz', 6 * dpr, y - 7 * dpr);
+  }
+  const now = performance.now(), span = 7000;
+  const line = (key, color, lw) => {
+    g2.strokeStyle = color; g2.lineWidth = lw * dpr; g2.lineJoin = 'round'; g2.lineCap = 'round';
+    g2.beginPath(); let pen = false, last = 0;
+    for (const p of R.hist) {
+      const f = p[key]; const x = W - ((now - p.t) / span) * W;
+      if (f > 0 && x > -10) { const y = yOf(clamp(f, FMIN, FMAX)); if (!pen || p.t - last > 120) g2.moveTo(x, y); else g2.lineTo(x, y); pen = true; last = p.t; }
+      else pen = false;
+    }
+    g2.stroke();
+  };
+  line('fi', css('--in'), 2);
+  g2.save(); g2.shadowColor = css('--out'); g2.shadowBlur = 8 * dpr; line('fo', css('--out'), 3); g2.restore();
+}
+let lastNum = 0;
+function loop() {
+  if (!R.live) return;
+  const lv = v => clamp((20 * Math.log10(v + 1e-5) + 60) / 60, 0, 1);
+  const li = lv(R.inLv), lo = lv(R.outLv);
+  $('#barIn').style.width = (li * 100).toFixed(0) + '%';
+  $('#barOut').style.width = (lo * 100).toFixed(0) + '%';
+  $('#btnLive').style.setProperty('--lv', (li * li).toFixed(2));
+  const now = performance.now();
+  if (now - lastNum > 120) {
+    lastNum = now;
+    const fi = R.f0i, fo = R.f0o;
+    $('#fin').innerHTML = fi > 0 ? Math.round(fi) + '<em>Hz</em>' : '—';
+    $('#fout').innerHTML = fo > 0 ? Math.round(fo) + '<em>Hz</em>' : '—';
+    if (R.ref > 0) $('#refVal').textContent = Math.round(R.ref) + ' Hz';
+    if (R.rec && !R.recStopping) { $('#recLbl').textContent = mmss((now - R.recStart) / 1000); }
+    if (R.live && R.ref > 0) { const lh = $('#liveHint'); if (/학습|^내 평균/.test(lh.textContent)) { const t = refHintText(); if (lh.textContent !== t) lh.textContent = t; } }
+  }
+  if (!$('#view-live').hidden) drawGraph();
+  R.raf = requestAnimationFrame(loop);
+}
+
+function refHintText() {
+  const P = S.params, ref = Math.round(R.ref);
+  if (P.mode === 0) {
+    const reach = ref * Math.pow(2, P.maxUp / 12);
+    if (reach < P.target - 8) return '내 평균 음높이 ' + ref + 'Hz → 올림 한도(+' + P.maxUp + '반음) 때문에 약 ' + Math.round(reach) + 'Hz까지만 올라가요. 더 높이려면 \'최대 올림 한도\'를 올리세요.';
+    return '내 평균 음높이 ' + ref + 'Hz → 목표 음높이에 맞춰 변조 중이에요.';
+  }
+  return '내 평균 음높이 ' + ref + 'Hz → ' + sgn(P.semi, 0, ' 반음') + ' 이동해서 변조 중이에요.';
+}
+
+/* ================= recording & takes ================= */
+function f32ToI16(f) { const o = new Int16Array(f.length); for (let i = 0; i < f.length; i++) { const s = f[i] > 1 ? 1 : f[i] < -1 ? -1 : f[i]; o[i] = s < 0 ? s * 32768 : s * 32767; } return o; }
+function i16ToF32(a) { const o = new Float32Array(a.length); for (let i = 0; i < a.length; i++) o[i] = a[i] / 32768; return o; }
+function concatI16(list, total) { const o = new Int16Array(total); let p = 0; for (const a of list) { o.set(a, p); p += a.length; } return o; }
+
+async function onRecClick() {
+  if (R.recStopping) return;
+  if (R.rec) { stopRec(); return; }
+  if (!R.live) {
+    if (!R.routeAsked) { askRoute(true); return; }
+    await startLive(); if (!R.live) return;
+  }
+  startRec();
+}
+function startRec() {
+  if (!R.live || R.rec) return;
+  R.recDry = []; R.recWet = []; R.recSamples = 0; R.rec = true; R.recStart = performance.now();
+  const p = S.presetId ? presetById(S.presetId) : null;
+  R.recMeta = { params: Object.assign({}, S.params), presetName: p ? p.name : '사용자 설정', presetId: S.presetId || 'custom', ref: R.ref || S.savedRef };
+  R.vn.send({ t: 'rec', on: true });
+  $('#btnRec').classList.add('recording'); $('#btnRec').setAttribute('aria-label', '녹음 정지'); setStatus('녹음 중', 'rec');
+}
+function stopRec() {
+  if (!R.rec || R.recStopping) return;
+  // keep capturing a little longer so the last word and the reverb tail are not cut off
+  R.recStopping = true;
+  $('#btnRec').classList.remove('recording'); $('#btnRec').setAttribute('aria-label', '녹음 시작'); $('#recLbl').textContent = '저장 중…';
+  setTimeout(() => {
+    R.rec = false; R.recStopping = false;
+    $('#recLbl').textContent = '녹음';
+    if (R.live) setStatus('변조 중', 'live');
+    if (R.vn) R.vn.send({ t: 'rec', on: false }); else finishRecording();
+  }, REC_TAIL_MS);
+}
+function finishRecording() {
+  const total = R.recSamples, sr = R.ctx.sampleRate;
+  const dry = concatI16(R.recDry, total), wetAll = concatI16(R.recWet, total);
+  const lat = Math.round(0.038 * sr);
+  const wet = wetAll.subarray(Math.min(lat, wetAll.length));
+  R.recDry = []; R.recWet = [];
+  if (total < sr * 0.3) { toast('녹음이 너무 짧아요'); }
+  else {
+    const m = R.recMeta;
+    addTake({ name: '녹음 ' + (++takeCounter), tag: m.presetName, sr, dry, wet: wet.slice(), params: m.params, ref: m.ref, fid: 'rec' + takeCounter, ftag: m.presetId });
+    toast('녹음함에 저장했어요', { label: '보기', fn: () => showTab('takes') });
+  }
+  if (R.stopAfter) { R.stopAfter = false; finishStop(); }
+}
+function addTake(t) {
+  t.id = ++takeUid; t.created = Date.now(); t.urls = {};
+  takes.unshift(t); renderTakes(); renderBadge();
+  return t;
+}
+function renderBadge() { const b = $('#takeBadge'); b.hidden = takes.length === 0; b.textContent = takes.length; }
+
+function takeCardHTML(t) {
+  const dur = t.wet.length / t.sr, mb = (t.wet.length * 2 / 1048576).toFixed(1);
+  const canShare = !!(navigator.canShare && navigator.share);
+  return '<article class="take" data-take="' + t.id + '">' +
+    '<div class="th"><div><h3>' + esc(t.name) + '</h3><div class="meta">' + esc(t.tag) + ' · ' + mmss(dur) + ' · ' + mb + ' MB</div></div></div>' +
+    '<canvas data-wave="' + t.id + '"></canvas>' +
+    '<div class="two"><button class="btn pri" data-act="play" data-kind="wet" data-id="' + t.id + '">' + icon('play', 'f') + '<span>변조음</span></button>' +
+    '<button class="btn" data-act="play" data-kind="dry" data-id="' + t.id + '">' + icon('play', 'f') + '<span>원본</span></button></div>' +
+    '<input class="seek" type="range" min="0" max="1000" value="0" data-seek="' + t.id + '" aria-label="재생 위치">' +
+    '<div class="acts"><button class="btn sm" data-act="conv" data-id="' + t.id + '">' + icon('spark') + '다른 목소리로</button>' +
+    '<button class="btn sm" data-act="save" data-id="' + t.id + '">' + icon('down') + '저장</button>' +
+    (canShare ? '<button class="btn sm" data-act="share" data-id="' + t.id + '">' + icon('share') + '공유</button>' : '') +
+    '<button class="btn sm danger" data-act="del" data-id="' + t.id + '">' + icon('trash') + '삭제</button></div>' +
+    '<div class="conv" data-convbox="' + t.id + '" hidden>' + PRESETS.filter(p => !p.bypass).map(p => '<button class="preset" data-act="convdo" data-id="' + t.id + '" data-preset="' + p.id + '"><b>' + p.name + '</b><small>' + p.sub.split(' · ')[0] + '</small></button>').join('') +
+    '<button class="preset" data-act="convdo" data-id="' + t.id + '" data-preset="_cur"><b>현재 설정</b><small>변조 탭 값</small></button></div>' +
+    '</article>';
+}
+function renderTakes() {
+  const mb = takes.reduce((s, t) => s + (t.dry.length + t.wet.length) * 2, 0) / 1048576;
+  $('#takesNote').textContent = '이 페이지를 닫으면 녹음이 사라져요. 필요한 건 저장해 두세요.' + (mb > 300 ? ' 지금 ' + Math.round(mb) + 'MB를 쓰고 있어요. 저장하고 지워 주세요.' : '');
+  const box = $('#takes');
+  box.innerHTML = takes.length ? takes.map(takeCardHTML).join('') : '<div class="empty">아직 녹음이 없어요.<br>변조 탭에서 녹음 버튼을 눌러 보세요.<br>음성 파일을 변환한 결과도 여기에 모여요.</div>';
+  if (!$('#view-takes').hidden) drawAllWaves();
+  refreshPlayUI();
+}
+function drawWave(c, t) {
+  const dpr = fitCanvas(c); if (!dpr) return;
+  const g = c.getContext('2d'), W = c.width, H = c.height; g.clearRect(0, 0, W, H);
+  const a = t.wet, n = a.length, step = Math.max(1, Math.floor(n / W));
+  g.fillStyle = css('--out');
+  for (let x = 0; x < W; x++) {
+    let mx = 0; const s0 = x * step, s1 = Math.min(n, s0 + step);
+    for (let i = s0; i < s1; i += Math.max(1, step >> 4)) { const v = Math.abs(a[i]); if (v > mx) mx = v; }
+    const h = Math.max(1.5 * dpr, (mx / 32768) * H * 0.92);
+    g.fillRect(x, (H - h) / 2, Math.max(1, dpr * 0.8), h);
+  }
+}
+function drawAllWaves() { requestAnimationFrame(() => { $$('canvas[data-wave]').forEach(c => { const t = takes.find(x => x.id === +c.dataset.wave); if (t) drawWave(c, t); }); }); }
+
+/* ---- WAV / playback ---- */
+function wavBlob(i16, sr) {
+  const n = i16.length, buf = new ArrayBuffer(44 + n * 2), dv = new DataView(buf);
+  const w = (o, s) => { for (let i = 0; i < s.length; i++) dv.setUint8(o + i, s.charCodeAt(i)); };
+  w(0, 'RIFF'); dv.setUint32(4, 36 + n * 2, true); w(8, 'WAVE'); w(12, 'fmt '); dv.setUint32(16, 16, true); dv.setUint16(20, 1, true); dv.setUint16(22, 1, true);
+  dv.setUint32(24, sr, true); dv.setUint32(28, sr * 2, true); dv.setUint16(32, 2, true); dv.setUint16(34, 16, true); w(36, 'data'); dv.setUint32(40, n * 2, true);
+  new Int16Array(buf, 44, n).set(i16);
+  return new Blob([buf], { type: 'audio/wav' });
+}
+function takeUrl(t, kind) { if (!t.urls[kind]) t.urls[kind] = URL.createObjectURL(wavBlob(kind === 'wet' ? t.wet : t.dry, t.sr)); return t.urls[kind]; }
+const player = new Audio(); player.preload = 'auto';
+const P = { id: 0, kind: '' };
+function playTake(t, kind) {
+  if (P.id === t.id && P.kind === kind && !player.paused) { player.pause(); refreshPlayUI(); return; }
+  if (P.id === t.id && P.kind === kind && player.src) { player.play().catch(() => {}); return; }
+  P.id = t.id; P.kind = kind; player.src = takeUrl(t, kind); player.currentTime = 0; player.play().catch(() => {});
+  refreshPlayUI();
+}
+function refreshPlayUI() {
+  $$('[data-act="play"]').forEach(b => {
+    const on = P.id === +b.dataset.id && P.kind === b.dataset.kind && !player.paused;
+    b.classList.toggle('on', on);
+    b.innerHTML = icon(on ? 'pause' : 'play', 'f') + '<span>' + (b.dataset.kind === 'wet' ? '변조음' : '원본') + '</span>';
+  });
+}
+player.addEventListener('timeupdate', () => {
+  if (!player.duration) return;
+  $$('[data-seek]').forEach(s => { s.value = (+s.dataset.seek === P.id) ? Math.round(player.currentTime / player.duration * 1000) : 0; });
+});
+player.addEventListener('ended', () => { refreshPlayUI(); });
+player.addEventListener('pause', refreshPlayUI); player.addEventListener('play', refreshPlayUI);
+
+const asciiBase = n => String(n).normalize('NFKD').replace(/[^\x00-\x7F]/g, '').replace(/[^\w-]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 24) || 'file';
+const fileNameOf = t => 'voice-' + t.fid + '-' + t.ftag + '.wav'; // ASCII only: Korean names are lost by some browsers and share targets
+function saveTake(t) {
+  const blob = wavBlob(t.wet, t.sr);
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = fileNameOf(t);
+  document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+  toast('다운로드 폴더에 저장을 요청했어요');
+}
+async function shareTake(t) {
+  try {
+    const f = new File([wavBlob(t.wet, t.sr)], fileNameOf(t), { type: 'audio/wav' });
+    if (navigator.canShare && navigator.canShare({ files: [f] })) await navigator.share({ files: [f], title: t.name });
+    else toast('이 기기에서는 공유를 지원하지 않아요. 저장을 이용하세요.');
+  } catch (e) { if (e && e.name !== 'AbortError') toast('공유하지 못했어요'); }
+}
+function deleteTake(t) {
+  if (P.id === t.id) { player.pause(); player.removeAttribute('src'); P.id = 0; }
+  Object.values(t.urls).forEach(u => URL.revokeObjectURL(u));
+  takes.splice(takes.indexOf(t), 1); renderTakes(); renderBadge(); renderFileResult();
+}
+
+function onTakeClick(e) {
+  const b = e.target.closest('[data-act]'); if (!b) return;
+  const t = takes.find(x => x.id === +b.dataset.id); if (!t) return;
+  const act = b.dataset.act;
+  if (act === 'play') playTake(t, b.dataset.kind);
+  else if (act === 'save') saveTake(t);
+  else if (act === 'share') shareTake(t);
+  else if (act === 'del') deleteTake(t);
+  else if (act === 'conv') { const box = $('[data-convbox="' + t.id + '"]', b.closest('.take')); box.hidden = !box.hidden; b.classList.toggle('on', !box.hidden); }
+  else if (act === 'convdo') convertTake(t, b.dataset.preset);
+}
+function onSeek(e) {
+  const s = e.target.closest('[data-seek]'); if (!s || +s.dataset.seek !== P.id || !player.duration) return;
+  player.currentTime = (s.value / 1000) * player.duration;
+}
+$('#takes').addEventListener('click', onTakeClick); $('#takes').addEventListener('input', onSeek);
+$('#fileResult').addEventListener('click', onTakeClick); $('#fileResult').addEventListener('input', onSeek);
+
+/* ================= offline conversion (same engine, faster than real time) ================= */
+async function renderOffline(dryF32, sr, params, ref, label) {
+  const lat = createVoiceEngine(sr).latencySamples;
+  const total0 = dryF32.length;
+  let r = ref || 0;
+  if (!r && params.mode === 0 && !params.bypass) {
+    const e1 = createVoiceEngine(sr);
+    e1.setParams(Object.assign({}, params, { breath: 0, reverb: 0, bright: 0, lowcut: 0 }));
+    const n1 = Math.min(total0, sr * 15), tmp = new Float32Array(4096);
+    for (let o = 0, k = 0; o < n1; o += 4096, k++) {
+      const len = Math.min(4096, n1 - o); e1.process(dryF32.subarray(o, o + len), tmp, len);
+      if (k % 12 === 11) { setProg(label + ' · 내 음높이 분석 중', (o / n1) * 0.15); await tick(); }
+    }
+    r = e1.getStatus().ref;
+  }
+  const e = createVoiceEngine(sr); e.setParams(params);
+  if (r) e.setRef(r, 2000);
+  const tail = Math.round(sr * (params.reverb > 0.02 ? 0.9 : 0.25));
+  const total = total0 + tail + lat, out = new Float32Array(total), blk = 4096, inb = new Float32Array(blk);
+  for (let o = 0, k = 0; o < total; o += blk, k++) {
+    const len = Math.min(blk, total - o);
+    inb.fill(0); if (o < total0) inb.set(dryF32.subarray(o, Math.min(o + len, total0)), 0);
+    e.process(inb, out.subarray(o, o + len), len);
+    if (k % 10 === 9) { setProg(label, 0.15 + (o / total) * 0.85); await tick(); }
+  }
+  return f32ToI16(out.subarray(lat, lat + total0 + tail));
+}
+async function convertTake(t, presetId) {
+  let params = Object.assign({}, S.params), name = '현재 설정';
+  if (presetId !== '_cur') { const p = presetById(presetId); params = Object.assign({}, BASE, S.params, p.p, { bypass: 0, mode: 0 }); name = p.name; }
+  params.bypass = 0;
+  try {
+    const wet = await renderOffline(i16ToF32(t.dry), t.sr, params, t.ref, t.name + ' → ' + name);
+    const nt = addTake({ name: t.name + ' → ' + name, tag: name + ' (다시 변환)', sr: t.sr, dry: t.dry, wet, params, ref: t.ref, fid: t.fid, ftag: presetId === '_cur' ? (S.presetId || 'custom') : presetId });
+    hideProg(); toast('변환 완료 · 맨 위에 추가했어요'); renderFileResult();
+  } catch (err) { console.error(err); hideProg(); toast('변환에 실패했어요'); }
+}
+
+/* ================= file conversion tab ================= */
+let fileData = null, lastFileTake = 0;
+$('#fileIn').addEventListener('change', async e => {
+  const f = e.target.files && e.target.files[0]; if (!f) return;
+  const info = $('#fileInfo'); info.hidden = false; info.textContent = '파일을 읽는 중…'; $('#filePick').hidden = true;
+  try {
+    const ctx = ensureCtx();
+    const buf = await f.arrayBuffer();
+    const ab = await ctx.decodeAudioData(buf);
+    if (ab.duration > MAX_FILE_SEC) { info.textContent = '5분이 넘는 파일은 변환할 수 없어요. (' + mmss(ab.duration) + ') 더 짧게 잘라서 시도해 주세요.'; return; }
+    const ch = ab.numberOfChannels, n = ab.length, mono = new Float32Array(n);
+    for (let c = 0; c < ch; c++) { const d = ab.getChannelData(c); for (let i = 0; i < n; i++) mono[i] += d[i] / ch; }
+    fileData = { name: f.name.replace(/\.[^.]+$/, ''), mono, sr: ab.sampleRate };
+    info.textContent = f.name + ' · ' + mmss(ab.duration);
+    $('#filePick').hidden = false;
+    $$('#filePresets .preset').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.preset === S.presetId)));
+  } catch (err) { console.error(err); info.textContent = '이 파일은 읽을 수 없어요. 다른 형식(mp3, m4a, wav)으로 시도해 보세요.'; }
+});
+$('#btnConvertFile').addEventListener('click', async () => {
+  if (!fileData) return;
+  const p = S.presetId ? presetById(S.presetId) : null;
+  const params = Object.assign({}, S.params, { bypass: 0 });
+  const name = p && !p.bypass ? p.name : '사용자 설정';
+  $('#btnConvertFile').disabled = true;
+  try {
+    const wet = await renderOffline(fileData.mono, fileData.sr, params, 0, fileData.name + ' 변환 중');
+    const dry = f32ToI16(fileData.mono);
+    const t = addTake({ name: fileData.name + ' → ' + name, tag: name + ' · 파일 변환', sr: fileData.sr, dry, wet, params, ref: 0, fid: asciiBase(fileData.name), ftag: S.presetId || 'custom' });
+    lastFileTake = t.id; hideProg(); renderFileResult(); toast('변환이 끝났어요');
+  } catch (err) { console.error(err); hideProg(); toast('변환에 실패했어요'); }
+  $('#btnConvertFile').disabled = false;
+});
+function renderFileResult() {
+  const t = takes.find(x => x.id === lastFileTake);
+  $('#fileResult').innerHTML = t ? takeCardHTML(t) : '';
+  if (t) requestAnimationFrame(() => { const c = $('#fileResult canvas[data-wave]'); if (c) drawWave(c, t); });
+  refreshPlayUI();
+}
+
+/* ================= diagnostics ================= */
+function refreshDiag() {
+  const c = R.ctx;
+  const lines = [
+    '보안 컨텍스트: ' + (window.isSecureContext ? '예' : '아니오 (마이크 사용 불가)'),
+    '오디오 엔진: ' + (R.vn ? R.vn.mode : (window.AudioWorkletNode ? 'AudioWorklet 지원' : 'ScriptProcessor만 지원')),
+    '샘플레이트: ' + (c ? c.sampleRate + ' Hz' : '—'),
+    '브라우저 지연(추정): ' + (c ? Math.round(((c.baseLatency || 0) + (c.outputLatency || 0)) * 1000) + ' ms' : '—') + ' + 알고리즘 38 ms'
+  ];
+  $('#diag').textContent = lines.join('\n');
+}
+
+/* ================= init ================= */
+function init() {
+  loadSettings(); buildStatic(); wireStatic(); syncUI(); renderTakes(); renderBadge(); refreshDiag();
+  if (!window.isSecureContext || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    const n = $('#notice'); n.hidden = false;
+    n.innerHTML = '<b class="nt">이 화면에서는 마이크를 쓸 수 없어요</b>브라우저가 이 주소에서 마이크를 막고 있어요.' + insecureHelp();
+  }
+  window.addEventListener('resize', () => { drawGraph(); drawAllWaves(); });
+  window.addEventListener('beforeunload', e => { if (takes.length) { e.preventDefault(); e.returnValue = ''; } });
+  drawGraph();
+  if (location.hash === '#debug') window.vcDebug = () => ({ takes: takes.map(t => ({ id: t.id, name: t.name, sr: t.sr, dry: t.dry, wet: t.wet })), R: { live: R.live, ref: R.ref, f0i: R.f0i, f0o: R.f0o, mode: R.vn && R.vn.mode, hist: R.hist.length, histData: R.hist.map(h => [Math.round(h.t), +h.fi.toFixed(1), +h.fo.toFixed(1)]) }, S });
+}
+init();
+})();
+</script>
+</body>
+</html>
